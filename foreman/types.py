@@ -6,6 +6,22 @@ from typing import Dict, List, Optional
 from lifecycle_msgs.msg import State
 
 
+class ForemanErrorCategory(Enum):
+    """Categories of domain errors the system can encounter."""
+    TRANSPORT = "TransportError"                # ROS service timeout, network issue
+    EXECUTION = "ExecutionError"              # controller_manager rejected the command
+    UNEXPECTED_STATE = "UnexpectedStateError"   # hardware crashed unprompted
+    PLANNER = "PlannerError"              # planner disallowed transitions, deadlock in planning
+    NONE = "None"
+
+
+@dataclass
+class ForemanError:
+    """Domain representation of an error in the system."""
+    category: ForemanErrorCategory
+    message: str
+    component_names: Optional[List[str]] = None
+
 class ComponentType(Enum):
     HARDWARE = 'hardware'
     CONTROLLER = 'controller'
