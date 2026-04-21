@@ -7,6 +7,7 @@ from rclpy.node import Node
 import foreman.adapters as Adapters
 from foreman.parser import parse_yaml_file
 from foreman.engine import ForemanEngine
+from foreman.types import ForemanError, ForemanErrorCategory
 
 
 class ForemanNode(Node):
@@ -29,7 +30,9 @@ class ForemanNode(Node):
 
 
         self.state_lock = threading.Lock()
-        self.service_call_active_future = False
+        # for error handling ,so we know what and when failed and who to blame
+        self._service_call_active_future = False
+        self._active_transition = None 
         self.last_transition_time = self.get_clock().now()
 
         # CORE ENGINE  =============================================
@@ -74,37 +77,60 @@ class ForemanNode(Node):
     def callback_main_loop(self):
         """Main loop."""
 
-        if self.service_call_active_future and self.service_call_active_future.done():
+        # do we have an active transition running?
+        if self._service_call_active_future and self._service_call_active_future.done():
             try:
-                result = self.service_call_active_future.result()
+                result = self._service_call_active_future.result()
                 if not result.ok:
-                    self._log_and_abort_goal(f"Service call failed. Check controller manager output.")
+                    comp_name = self._active_transition.component.name if self._active_transition else "unknown"
+                    fault = ForemanError(
+                        category=ForemanErrorCategory.EXECUTION,
+                        message="Controller manager rejected the transition.",
+                        component_names=[comp_name]
+                    )
+                    self._log_and_abort_goal(fault)
             except Exception as e:
-                self._log_and_abort_goal(f"Service call exception: {e}")
+                comp_name = self._active_transition.component.name if self._active_transition else "unknown"
+                fault = ForemanError(
+                    category=ForemanErrorCategory.DELIVERY,
+                    message=f"Service call exception: {str(e)}",
+                    component_names=[comp_name]
+                )
+                self._log_and_abort_goal(fault)
             finally:
-                self.service_call_active_future = None
+                self._service_call_active_future = None
+                self._active_transition = None
                 self.last_transition_time = self.get_clock().now()
 
-        if self.service_call_active_future:
+        # prevent concurrent service calls
+        if self._service_call_active_future:
             return
         
-        command = self.engine.get_next_transition()
-
+        # throttle transitions by transition_pause
         time_since_last = (self.get_clock().now() - self.last_transition_time).nanoseconds / 1e9
         if time_since_last < self.config.transition_pause:
             return
-
+        
+        # Ok, now we get next command
+        command = self.engine.get_next_transition()
         if not command:
             return
 
         try:
-            self.service_call_active_future = self.service_caller.execute_transition(command)
+            self._active_transition = command
+            self._service_call_active_future = self.service_caller.execute_transition(command)
         except Exception as e:
-            self._log_and_abort_goal(f"Execution sequence failed: {e}")
+            fault = ForemanError(
+                category=ForemanErrorCategory.EXECUTION,
+                message=f"Failed to execute transition: {str(e)}",
+                component_names=[command.component.name]
+            )
+            self._log_and_abort_goal(fault)
+            self._active_transition = None
 
-    def _log_and_abort_goal(self, reason: str):
-        self.get_logger().error(reason)
-        self.engine.abort_goal(reason)
+    def _log_and_abort_goal(self, fault: ForemanError):
+        self.engine.abort_goal(fault)
+        self.get_logger().error(f"[{fault.category.value}] {fault.message}. Failed components: {fault.component_names}")
 
 def main(args=None):
     rclpy.init(args=args)

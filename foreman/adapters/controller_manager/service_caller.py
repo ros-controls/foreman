@@ -3,7 +3,7 @@ from typing import List
 from rclpy.node import Node
 from rclpy.task import Future
 
-from foreman.types import ComponentType, LifecycleState, SystemTransitionCommand
+from foreman.types import ComponentType, LifecycleState, SystemTransitionCommand, ForemanError, ForemanErrorCategory
 from controller_manager_msgs.srv import (
     CleanupController,
     ConfigureController,
@@ -20,7 +20,7 @@ class ServiceCaller:
     def __init__(self, node: Node, controller_manager_name: str):
         self._node = node
         # TODO: parametrize this?
-        self._timeout = 30.0
+        self._timeout = 10.0
         self._controller_manager_name = controller_manager_name
 
         group = self._node.callback_group_services
@@ -38,7 +38,7 @@ class ServiceCaller:
 
     def _service_call(self, client, request) -> Future:
         if not client.wait_for_service(timeout_sec=self._timeout):
-            raise RuntimeError(f"Service {client.srv_name} not available. Is {self._controller_manager_name} running?")
+            raise RuntimeError(f"Service {client.srv_name} timed out. Is {self._controller_manager_name} running?")
         return client.call_async(request)
 
     def execute_transition(self, cmd: SystemTransitionCommand) -> Future:
