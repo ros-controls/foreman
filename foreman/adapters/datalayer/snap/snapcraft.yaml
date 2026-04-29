@@ -1,0 +1,81 @@
+name: ros-jazzy-foreman
+verison: '1.0'
+summary: Foreman ROS 2 Package with ctrlX Data Layer integration
+description: Package for managing ros2_control component lifecycle using ctrlX non-RT Data Layer
+base: core24
+confinement: strict
+
+plugs:
+  datalayer:
+    interface: content
+    content: datalayer
+    target: $SNAP/datalayer
+  active-solution:
+    interface: content
+    content: solutions
+    target: $SNAP_COMMON/solutions
+
+name: foreman
+version: '0.1.0'
+summary: Foreman ROS 2 package with ctrlX integration
+description: |
+  A simple python package running on ROS 2 Jazzy, integrated 
+  with the ctrlX Data Layer via IPC.
+
+# Use core24 for ROS 2 Jazzy compatibility
+base: core24
+confinement: strict
+
+# Define plugs for the ctrlX Data Layer and your app-data configuration
+plugs:
+  datalayer:
+    interface: content
+    content: datalayer
+    target: $SNAP/datalayer
+  app-data:
+    interface: content
+    content: app-data
+    target: $SNAP/app-data
+
+apps:
+  foreman-node:
+    command: bin/run-node.sh
+    daemon: simple
+    plugs:
+      - network
+      - network-bind
+      - datalayer
+      - app-data
+    environment:
+      # Needed for standard ROS 2 snap environments
+      ROS_DISTRO: jazzy
+      # Required for Data Layer to locate the IPC socket
+      SNAP_COM: /var/snap/ctrlx-node-red/common/datalayer
+
+parts:
+  # 1. The ROS 2 Workspace Build
+  foreman:
+    plugin: colcon
+    source: https://your-remote-repo.com/foreman.git # Replace with your repo
+    source-type: git
+    build-environment:
+      - ROS_VERSION: '2'
+      - ROS_DISTRO: 'jazzy'
+    stage-packages:
+      - ros-jazzy-rclpy
+      # Add other ros packages needed by foreman here
+
+  # 2. CtrlX Data Layer Python Library
+  # Downloaded dynamically via build-snap.sh
+  ctrlx-datalayer:
+    plugin: python
+    source: snap/wheels/ 
+    python-packages:
+      - ctrlx_datalayer-2.6.0-py3-none-any.whl
+
+  # 3. The Entrypoint Script
+  scripts:
+    plugin: dump
+    source: snap/local/
+    organize:
+      run-node.sh: bin/run-node.sh

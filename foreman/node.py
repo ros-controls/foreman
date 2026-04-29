@@ -69,6 +69,16 @@ class ForemanNode(Node):
         # TODO: Add pretty print of current state and read config?
         self.get_logger().info("Foreman Node initialized.")
 
+        # TEST DATALAYER
+        self.dl_adapter = Adapters.Datalayer.DatalayerAdapter
+        self.timer = self.create_timer(2.0, self.test_datalayer_callback, callback_group=self.callback_group_subscriber)
+        self.counter = 0
+
+    def test_datalayer_callback(self):
+        msg = f"Foreman Heartbeat: {self.counter}"
+        self.dl_adapter.update_test_string(msg)
+        self.counter += 1
+
     def callback_main_loop(self):
         """Main loop."""
 
