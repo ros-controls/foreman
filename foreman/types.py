@@ -2,9 +2,17 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from typing import Dict, List, Optional
+from pathlib import Path
 
 from lifecycle_msgs.msg import State
 
+
+@dataclass
+class ForemanParameters:
+    """Holds resolved Foreman parameters."""
+    config_path: Path
+    # later we can add or other parameters
+    # timeout: float = 5.0
 
 class ForemanErrorCategory(Enum):
     """Categories of domain errors the system can encounter."""

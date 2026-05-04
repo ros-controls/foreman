@@ -17,23 +17,18 @@ class ForemanNode(Node):
 
     def __init__(self):
         super().__init__('foreman_node')
-        
-        # CONFIG  =============================================
-        # TODO: parametrize this!
-        config_path = "/home/nikolab/bRobotized/workspaces/grc26/src/foreman/foreman/config/scenario.yaml"
-        self.config = parse_yaml_file(config_path)
-        # self.declare_parameter('config_path', '')
-        # config_path = self.get_parameter('config_path').value
-        
-        # if not config_path:
-        #     raise ValueError("Parameter 'config_path' must be provided")
-
 
         self.state_lock = threading.Lock()
         # for error handling ,so we know what and when failed and who to blame
         self._service_call_active_future = False
         self._active_transition = None 
         self.last_transition_time = self.get_clock().now()
+
+        
+        # CONFIG  =============================================
+        self.ros_parameter_adapter = Adapters.ROS.Parameters(node=self)
+        self.parameters = self.ros_parameter_adapter.load_parameters()
+        self.config = parse_yaml_file(self.parameters.config_path)
 
         # CORE ENGINE  =============================================
         self.engine = ForemanEngine(self.config, self.state_lock)
@@ -136,6 +131,13 @@ def main(args=None):
     rclpy.init(args=args)
     
     node = ForemanNode()
+
+    try:
+        node = ForemanNode() 
+    except Exception as e:
+        print(f"[FATAL] [foreman_node]: Failed to initialize: {e}", file=sys.stderr)
+        rclpy.shutdown()
+        sys.exit(1)
 
     executor = MultiThreadedExecutor()
     executor.add_node(node)
