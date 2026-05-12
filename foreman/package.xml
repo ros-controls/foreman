@@ -9,6 +9,7 @@
 
   <depend>rclpy</depend>
   <depend>controller_manager_msgs</depend>
+  <depend>foreman_msgs</depend>
   <depend>lifecycle_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>

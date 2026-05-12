@@ -6,6 +6,10 @@ base: core24
 confinement: strict
 
 plugs:
+  ros-base:
+    interface: content
+    content: executables
+    target: $SNAP/rosruntime
   datalayer:
     interface: content
     content: datalayer
@@ -24,46 +28,16 @@ apps:
       - network-bind
       - datalayer
       - active-solution
-    extensions: [ros2-jazzy]
+      - ros-base
 
 parts:
-  ctrlx-datalayer-deb:
-    plugin: nil
-    source: ./assets/
+  foreman-app:
+    plugin: dump
+    source: ./foreman_snap_install
+    stage-packages: 
+      - libpython3.12
     override-build: |
-      echo "Extracting the ctrlX datalayer .deb package ..."
-      # This extracts the .deb into the snap's filesystem
-      # It puts python files in /usr/lib/python3/dist-packages/ 
-      # and C++ libs in /usr/lib/, which the snap automatically discovers.
-      dpkg -x ctrlx-datalayer-3.5.2.deb $SNAPCRAFT_PART_INSTALL
-
-  ctrlx-fbs-wheel:
-    after: [ctrlx-datalayer-deb]
-    plugin: python
-    source: ./assets/
-    python-packages:
-      - ctrlx_fbs-2.6.0-py3-none-any.whl
-
-  foreman:
-    after: [ctrlx-fbs-wheel]
-    plugin: colcon
-    source: https://github.com/b-robotized/foreman.git
-    source-branch: datalayer
-    source-type: git
-    build-environment:
-      - ROS_VERSION: '2'
-      - ROS_DISTRO: 'jazzy'
-      - PYTHONPATH: "/usr/lib/python3/dist-packages:${PYTHONPATH:-}"
-    build-packages:
-      - build-essential
-      - ros-jazzy-rosidl-default-generators
-      - ros-jazzy-ros-environment
-    stage-packages:
-      - ros-jazzy-rclpy
-      - ros-jazzy-ros2run
-      - ros-jazzy-ros2launch
-      - ros-jazzy-launch-ros
-      - ros-jazzy-rmw-zenoh-cpp  
+      craftctl default
 
   scripts:
     plugin: dump
@@ -71,10 +45,8 @@ parts:
     organize:
       entrypoint.sh: bin/entrypoint.sh
       foreman.default.env: etc/foreman.default.env
-
-# Ignored because the C++ binaries in the wheel are pre-compiled and might trip the snapcraft linter
+      
 lint:
   ignore:
     - library:
-        - usr/lib/aarch64-linux-gnu/libcomm_datalayer.so.*
-        - usr/lib/x86_64-linux-gnu/libcomm_datalayer.so.*
+        - usr/lib/x86_64-linux-gnu/libpython3.12.so.*
