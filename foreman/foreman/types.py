@@ -158,14 +158,9 @@ class ErrorSnapshot:
     components: List[str]
 
 @dataclass
-class ComponentSnapshot:
-    name: str
-    state: str
-
-@dataclass
 class ForemanSnapshot:
     goal: str
     ready: bool
     at_goal: bool
     error: ErrorSnapshot
-    components: List[ComponentSnapshot]
+    components: List[Component]

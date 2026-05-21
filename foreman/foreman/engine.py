@@ -14,7 +14,6 @@ from foreman.types import (
     ForemanResponse,
     ForemanErrorCategory,
     ErrorSnapshot,
-    ComponentSnapshot,
     ForemanSnapshot
 )
 
@@ -201,10 +200,7 @@ class ForemanEngine:
                     message=self._error_state.message if self._error_state else "",
                     components=self._error_state.component_names if self._error_state else []
                 ),
-                components=[
-                    ComponentSnapshot(name=name, state=comp.lifecycle_state.name)
-                    for name, comp in self._state.components.items()
-                ]
+                components=list(self._state.components.values())
             )
 
     def _locked_is_at_goal(self) -> bool:

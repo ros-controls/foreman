@@ -26,11 +26,13 @@ def serialize_foreman_snapshot(snapshot: ForemanSnapshot) -> bytearray:
     comp_offsets = []
     for comp in snapshot.components:
         name_offset = builder.CreateString(comp.name)
-        state_offset = builder.CreateString(comp.state)
+        state_offset = builder.CreateString(comp.lifecycle_state.name)
+        type_offset = builder.CreateString(comp.component_type.value)
         
         foreman.fbs.ComponentState.Start(builder)
         foreman.fbs.ComponentState.AddName(builder, name_offset)
         foreman.fbs.ComponentState.AddState(builder, state_offset)
+        foreman.fbs.ComponentState.AddComponentType(builder, type_offset)
         comp_offsets.append(foreman.fbs.ComponentState.End(builder)) 
     
     foreman.fbs.ForemanSnapshot.StartComponentsVector(builder, len(comp_offsets))

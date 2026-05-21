@@ -5,6 +5,7 @@ namespace foreman.fbs;
 table ComponentState {
     name: string;
     state: string;
+    component_type: string;
 }
 
 table ErrorState {

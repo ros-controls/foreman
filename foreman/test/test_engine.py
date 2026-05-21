@@ -53,9 +53,9 @@ def test_engine_error_and_abort(minimal_foreman_config):
     
     # frontend will see the error and no active goal
     snapshot = engine.get_engine_snapshot()
-    assert snapshot['error']['is_error'] is True
-    assert snapshot['error']['message'] == ERROR_MSG
-    assert snapshot['goal'] == 'None'
+    assert snapshot.error.is_error is True
+    assert snapshot.error.message == ERROR_MSG
+    assert snapshot.goal == 'None'
 
 def test_set_system_state_expected_transition(minimal_foreman_config):
     lock = threading.Lock()
@@ -82,7 +82,7 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
     
     # verify no errors were triggered in snapshot
     snapshot = engine.get_engine_snapshot()
-    assert snapshot['error']['is_error'] is False
+    assert snapshot.error.is_error is False
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     lock = threading.Lock()
@@ -109,10 +109,10 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     
     # verify error was generated correctly in snapshot
     snapshot = engine.get_engine_snapshot()
-    assert snapshot['error']['is_error'] is True
-    assert snapshot['error']['category'] == ForemanErrorCategory.UNEXPECTED_STATE.value
-    assert 'hw1' in snapshot['error']['components']
-    assert snapshot['goal'] == 'None'
+    assert snapshot.error.is_error is True
+    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
+    assert 'hw1' in snapshot.error.components
+    assert snapshot.goal == 'None'
     
     # verify planner halts
     assert engine.get_next_transition() is None
@@ -189,8 +189,8 @@ def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
     assert 'robot_manager' in response.error.component_names
 
     snapshot = engine.get_engine_snapshot()
-    assert snapshot['error']['is_error'] is True
-    assert snapshot['goal'] == 'None'
+    assert snapshot.error.is_error is True
+    assert snapshot.goal == 'None'
 
 
 # --- Unsatisfiable Dependency Tests ---
