@@ -6,7 +6,7 @@ from .ros_node_parameters import RosNodeParameters
 
 try:
     from .datalayer.datalayer_adapter import DatalayerAdapter
-except ImportError:
+except ImportError as e:
     import sys
     print(f"[DATALAYER IMPORT FAILED] {e}", file=sys.stderr)
     DatalayerAdapter = None
