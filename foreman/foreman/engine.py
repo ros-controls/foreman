@@ -110,10 +110,13 @@ class ForemanEngine:
         Set internal system state to that which is observed.
         Monitors for unexpected changes in component state.
         """
+        tracked_components = [c for c in components if c.name in self._config.tracked_components]
+
         with self._state_lock:
             # overwrite existing state
             previous_state = self._state.components
-            self._state.components = {comp.name: comp for comp in components}
+            
+            self._state.components = {comp.name: comp for comp in tracked_components}
             
             was_ready = self._is_ready
             self._is_ready = True
@@ -124,12 +127,11 @@ class ForemanEngine:
                 not self._current_goal):
                 return ForemanResponse(True, "System state observed.")
 
-            # otherwise, check for anomalies
+            # otherwise, check for anomalies among components listed in yaml file
             unexpected_changes = []
             missing_components = []
 
-            # unexpected state drops
-            for incoming in components:
+            for incoming in tracked_components:
                 existing = previous_state.get(incoming.name)
                 if existing and incoming.lifecycle_state != existing.lifecycle_state:
                     expected = (

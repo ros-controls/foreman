@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 
 import yaml
 
@@ -29,6 +29,7 @@ class ParsedScenario:
     goals: Dict[str, SystemGoal]
     lifecycle_nodes: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    tracked_components: Set[str] = field(default_factory=set)
 
 
 def parse_state_string(state_str: str) -> LifecycleState:
@@ -152,6 +153,14 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     for key, value in data.items():
         if key not in known_keys:
             metadata[key] = value
+    
+    tracked_components = set(hardware + lifecycle_nodes)
+    for rule in dependency_rules:
+        tracked_components.add(rule.controller_name)
+    for goal in goals.values():
+        tracked_components.update(c.name for c in goal.hardware_goals)
+        tracked_components.update(c.name for c in goal.controller_goals)
+        tracked_components.update(c.name for c in goal.lifecycle_node_goals)
 
     return ParsedScenario(
         controller_manager=controller_manager,
@@ -160,5 +169,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         lifecycle_nodes=lifecycle_nodes,
         dependency_rules=dependency_rules,
         goals=goals,
-        metadata=metadata
+        metadata=metadata,
+        tracked_components=tracked_components
     )
