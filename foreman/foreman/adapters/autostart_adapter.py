@@ -22,9 +22,18 @@ class AutostartAdapter:
             self._node.get_logger().info(f"Autostart parameter is set to false.")
             return
 
+        if self.transition_success and self.engine.get_engine_snapshot().error.is_error:
+            self._node.get_logger().warn(
+                f"Autostart goal '{self.goal_name}' aborted mid-transition. Resetting for retry."
+            )
+            self.transition_success = False
+            self._stable_ticks = 0
+            self._last_observed_states = None
+            return
+
         if not self.all_components_ready():
             not_ready = self._get_not_ready_components()
-            self._node.get_logger().info(f"Some components are not ready yet: {not_ready}. Waiting before requesting autostart...")
+            self._node.get_logger().info(f"Some components are not ready yet: {not_ready}. Waiting before requesting autostart...", throttle_duration_sec=2)
             self._stable_ticks = 0
             return
 
@@ -36,8 +45,10 @@ class AutostartAdapter:
 
     @property
     def is_done(self) -> bool:
-        """True once the goal request was accepted successfully."""
-        return self.transition_success
+        """True once the goal was accepted and the engine has not aborted it."""
+        if not self.transition_success:
+            return False
+        return not self.engine.get_engine_snapshot().error.is_error
 
     def send_goal_request(self) -> bool:
         """Send goal request to the engine. Returns True if accepted."""
@@ -78,8 +89,4 @@ class AutostartAdapter:
             all(name in observed for name in self.engine._config.tracked_components)
             and all(c.lifecycle_state >= desired_state for c in observed.values())
         )
-
-        # self._node.get_logger().info(f"Here are all the components observed: {observed}.")
-        # self._node.get_logger().info(f"Here are all the components tracked: {self.engine._config.tracked_components}.")
-        
         return all_unconfigured 
