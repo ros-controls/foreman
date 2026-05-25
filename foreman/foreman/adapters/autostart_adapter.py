@@ -6,7 +6,7 @@ from foreman.engine import ForemanEngine
 class AutostartAdapter:
     """Adapter to transition automatically to a desired state after all desired components are loaded."""
     
-    STABLE_TICKS_REQUIRED = 20  # consecutive ticks with no state change before requesting transition
+    STABLE_TICKS_REQUIRED = 50  # consecutive ticks with no state change before requesting transition
 
     def __init__(self, node: Node, engine: ForemanEngine, goal_name: str, autostart: bool = False):
         self._node = node
