@@ -64,7 +64,7 @@ class ForemanNode(Node):
         self.autostart_adapter = adapters.AutostartAdapter(
             node=self,
             engine=self.foreman_engine,
-            goal_name="active",
+            goal_name=self.foreman_config.autostart_goal_state,
             autostart=self.foreman_config.autostart
         )
 
