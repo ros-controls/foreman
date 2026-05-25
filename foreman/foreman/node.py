@@ -64,9 +64,9 @@ class ForemanNode(Node):
         self.autostart_adapter = adapters.AutostartAdapter(
             node=self,
             engine=self.foreman_engine,
-            goal_name="active"
-        ) 
-        self.autostart = True
+            goal_name="active",
+            autostart=self.foreman_config.autostart
+        )
 
         # MAIN LOOP ================================================
 
@@ -95,7 +95,7 @@ class ForemanNode(Node):
     def callback_main_loop(self):
         """Main loop."""
 
-        if not self.autostart_adapter.is_done:
+        if self.foreman_config.autostart and not self.autostart_adapter.is_done:
             self.autostart_adapter.autostart()
 
         # do we have an active transition running?

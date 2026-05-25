@@ -30,6 +30,7 @@ class ParsedScenario:
     lifecycle_nodes: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     tracked_components: Set[str] = field(default_factory=set)
+    autostart: bool = False
 
 
 def parse_state_string(state_str: str) -> LifecycleState:
@@ -101,6 +102,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     transition_pause = data.get('transition_pause', 0.0)
     hardware = data.get('hardware', [])
     lifecycle_nodes = data.get('lifecycle_nodes', [])
+    autostart = data.get('autostart', False)
 
     dependency_rules = []
     controllers = data.get('controllers', {})
@@ -149,7 +151,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     metadata = {}
-    known_keys = {'controller_manager', 'transition_pause', 'hardware', 'lifecycle_nodes', 'controllers', 'goal_states'}
+    known_keys = {'controller_manager', 'transition_pause', 'hardware', 'lifecycle_nodes', 'controllers', 'goal_states', 'autostart'}
     for key, value in data.items():
         if key not in known_keys:
             metadata[key] = value
@@ -170,5 +172,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         dependency_rules=dependency_rules,
         goals=goals,
         metadata=metadata,
-        tracked_components=tracked_components
+        tracked_components=tracked_components,
+        autostart=autostart,
     )

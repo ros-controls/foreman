@@ -8,9 +8,9 @@ class AutostartAdapter:
     
     STABLE_TICKS_REQUIRED = 20  # consecutive ticks with no state change before requesting transition
 
-    def __init__(self, node: Node, engine: ForemanEngine, goal_name:str):
+    def __init__(self, node: Node, engine: ForemanEngine, goal_name: str, autostart: bool = False):
         self._node = node
-        self._autostart = True
+        self._autostart = autostart
         self.engine = engine
         self.goal_name = goal_name
         self.transition_success = False
@@ -74,9 +74,6 @@ class AutostartAdapter:
         snapshot = self.engine.get_engine_snapshot()
         observed = {c.name: c for c in snapshot.components}
 
-        # all_components_present =  all(name in observed for name in self.engine._config.tracked_components)
-        # all_components_min_state_required = all(c.lifecycle_state >= desired_state for c in observed.values())
-        # all_unconfigured = all_components_present and all_components_min_state_required
         all_unconfigured = (
             all(name in observed for name in self.engine._config.tracked_components)
             and all(c.lifecycle_state >= desired_state for c in observed.values())
