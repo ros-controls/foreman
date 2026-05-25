@@ -13,16 +13,13 @@ class AutostartAdapter:
         self._autostart = True
         self.engine = engine
         self.goal_name = goal_name
-        self.goal_sent = False
+        self.transition_success = False
         self._last_observed_states = None
         self._stable_ticks = 0
 
     def autostart(self):
         if not self._autostart:
             self._node.get_logger().info(f"Autostart parameter is set to false.")
-            return
-
-        if self.goal_sent:
             return
 
         if not self.all_components_ready():
@@ -35,16 +32,21 @@ class AutostartAdapter:
             return
 
         self._node.get_logger().info(f"All components stable and ready. Requesting goal transition.")
-        self.goal_sent = self.send_goal_request()
-            # return True 
+        self.transition_success = self.send_goal_request()
 
-    def send_goal_request(self): 
-        """Send goal request to the Foreman Service."""
+    @property
+    def is_done(self) -> bool:
+        """True once the goal request was accepted successfully."""
+        return self.transition_success
+
+    def send_goal_request(self) -> bool:
+        """Send goal request to the engine. Returns True if accepted."""
         response = self.engine.request_goal(self.goal_name)
         if response.success:
             self._node.get_logger().info(f"Autostart: {response.message}")
         else:
-            self._node.get_logger().warn(f"Autostart failed: {response.message}")       
+            self._node.get_logger().warn(f"Autostart failed: {response.message}")
+        return response.success
 
     def _is_state_stable(self) -> bool:
         """Return True once the system state has been unchanged for STABLE_TICKS_REQUIRED consecutive ticks."""
@@ -71,12 +73,16 @@ class AutostartAdapter:
         """Check if all the tracked components are in the desired state."""
         snapshot = self.engine.get_engine_snapshot()
         observed = {c.name: c for c in snapshot.components}
+
+        # all_components_present =  all(name in observed for name in self.engine._config.tracked_components)
+        # all_components_min_state_required = all(c.lifecycle_state >= desired_state for c in observed.values())
+        # all_unconfigured = all_components_present and all_components_min_state_required
         all_unconfigured = (
             all(name in observed for name in self.engine._config.tracked_components)
             and all(c.lifecycle_state >= desired_state for c in observed.values())
         )
-        return all_unconfigured
 
-
-
-    
+        # self._node.get_logger().info(f"Here are all the components observed: {observed}.")
+        # self._node.get_logger().info(f"Here are all the components tracked: {self.engine._config.tracked_components}.")
+        
+        return all_unconfigured 
