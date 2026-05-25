@@ -5,31 +5,37 @@ from foreman.engine import ForemanEngine
 
 class AutostartAdapter:
     """Adapter to transition automatically to a desired state after all desired components are loaded."""
+    
+    STABLE_TICKS_REQUIRED = 20  # consecutive ticks with no state change before requesting transition
+
     def __init__(self, node: Node, engine: ForemanEngine, goal_name:str):
         self._node = node
         self._autostart = True
-        self.engine = engine 
-        self.goal_name = goal_name  
-        self.goal_sent = False 
+        self.engine = engine
+        self.goal_name = goal_name
+        self.goal_sent = False
+        self._last_observed_states = None
+        self._stable_ticks = 0
 
-    def autostart(self): 
-        if not self._autostart: 
+    def autostart(self):
+        if not self._autostart:
             self._node.get_logger().info(f"Autostart parameter is set to false.")
-            return 
+            return
+
+        if self.goal_sent:
+            return
 
         if not self.all_components_ready():
             not_ready = self._get_not_ready_components()
             self._node.get_logger().info(f"Some components are not ready yet: {not_ready}. Waiting before requesting autostart...")
+            self._stable_ticks = 0
             return
-               
-        if self.all_components_ready(): 
-            if self.goal_sent: 
-                return 
-            # Transition to the goal state 
-            #TODO: give info about the desired state
-            self._node.get_logger().info(f"All components are ready. Requesting goal transition.")
-            self.send_goal_request()
-            self.goal_sent = True
+
+        if not self._is_state_stable():
+            return
+
+        self._node.get_logger().info(f"All components stable and ready. Requesting goal transition.")
+        self.goal_sent = self.send_goal_request()
             # return True 
 
     def send_goal_request(self): 
@@ -40,6 +46,15 @@ class AutostartAdapter:
         else:
             self._node.get_logger().warn(f"Autostart failed: {response.message}")       
 
+    def _is_state_stable(self) -> bool:
+        """Return True once the system state has been unchanged for STABLE_TICKS_REQUIRED consecutive ticks."""
+        current_states = {c.name: c.lifecycle_state for c in self.engine.get_engine_snapshot().components}
+        if current_states != self._last_observed_states:
+            self._last_observed_states = current_states
+            self._stable_ticks = 0
+            return False
+        self._stable_ticks += 1
+        return self._stable_ticks >= self.STABLE_TICKS_REQUIRED
 
     def _get_not_ready_components(self, desired_state=LifecycleState.UNCONFIGURED):
         """Return names of tracked components that are missing or below the desired state."""
