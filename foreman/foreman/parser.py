@@ -24,13 +24,14 @@ class ParsedScenario:
 
     controller_manager: str
     transition_pause: float
+    autostart_goal_state: str 
     hardware: List[str]
     dependency_rules: List[ControllerDependencyRule]
     goals: Dict[str, SystemGoal]
     lifecycle_nodes: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     tracked_components: Set[str] = field(default_factory=set)
-
+    
 
 def parse_state_string(state_str: str) -> LifecycleState:
     """Convert YAML state string to LifecycleState enum."""
@@ -99,6 +100,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
 
     controller_manager = data.get('controller_manager', '')
     transition_pause = data.get('transition_pause', 0.0)
+    autostart_goal_state = data.get('autostart_goal_state','')
     hardware = data.get('hardware', [])
     lifecycle_nodes = data.get('lifecycle_nodes', [])
 
@@ -149,7 +151,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     metadata = {}
-    known_keys = {'controller_manager', 'transition_pause', 'hardware', 'lifecycle_nodes', 'controllers', 'goal_states'}
+    known_keys = {'controller_manager', 'transition_pause', 'hardware', 'lifecycle_nodes', 'controllers', 'goal_states', 'autostart_goal_state'}
     for key, value in data.items():
         if key not in known_keys:
             metadata[key] = value
@@ -162,13 +164,20 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         tracked_components.update(c.name for c in goal.controller_goals)
         tracked_components.update(c.name for c in goal.lifecycle_node_goals)
 
+    if autostart_goal_state and autostart_goal_state not in goals:
+        raise ValueError(
+            f"autostart_goal_state '{autostart_goal_state}' not found in goal_states. "
+            f"Available: {list(goals.keys())}"
+        )
+
     return ParsedScenario(
         controller_manager=controller_manager,
         transition_pause=transition_pause,
+        autostart_goal_state=autostart_goal_state,
         hardware=hardware,
         lifecycle_nodes=lifecycle_nodes,
         dependency_rules=dependency_rules,
         goals=goals,
         metadata=metadata,
-        tracked_components=tracked_components
+        tracked_components=tracked_components        
     )

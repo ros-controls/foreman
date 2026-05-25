@@ -61,6 +61,13 @@ class ForemanNode(Node):
             engine=self.foreman_engine
         )
 
+        self.autostart_adapter = adapters.AutostartAdapter(
+            node=self,
+            engine=self.foreman_engine,
+            goal_name=self.foreman_config.autostart_goal_state,
+            autostart=bool(self.foreman_config.autostart_goal_state)
+        )
+
         # MAIN LOOP ================================================
 
         # RUN everything at 10HZ
@@ -87,6 +94,9 @@ class ForemanNode(Node):
 
     def callback_main_loop(self):
         """Main loop."""
+
+        if bool(self.foreman_config.autostart_goal_state) and not self.autostart_adapter.is_done:
+            self.autostart_adapter.autostart()
 
         # do we have an active transition running?
         if self._service_call_active_future and self._service_call_active_future.done():
