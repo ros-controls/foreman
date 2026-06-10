@@ -89,6 +89,79 @@ def parse_requires(
     return reqs
 
 
+def _collect_profiles(data):
+    """Find the top-level entries that are profiles (i.e. dicts with controllers/hardware/lifecycle_nodes keys whose value is a list)."""
+    profiles = {}
+    for name, body in data.items():
+        if not isinstance(body, dict):
+            continue
+        is_profile = (
+            isinstance(body.get('controllers'), list)
+            or isinstance(body.get('hardware'), list)
+            or isinstance(body.get('lifecycle_nodes'), list)
+        )
+        if is_profile:
+            profiles[name] = body
+    return profiles
+
+
+def _expand_profiles(profiles):
+    """Turn each profile into a complete SystemGoal.
+
+    The 'universe' is every name mentioned across all profiles. For each profile,
+    listed names are ACTIVE and every other name in the universe is INACTIVE.
+    """
+    #TODO: revisit the name "universe" (e.g. profile_universe, all_components or every_named_component) to avoid ambiguity.
+    universe_controllers = set()
+    universe_hardware = set()
+    universe_lifecycle = set()
+    for body in profiles.values():
+        universe_controllers.update(body.get('controllers', []) or [])
+        universe_hardware.update(body.get('hardware', []) or [])
+        universe_lifecycle.update(body.get('lifecycle_nodes', []) or [])
+
+    goals = {}
+    for name, body in profiles.items():
+        active_controllers = set(body.get('controllers', []) or [])
+        active_hardware = set(body.get('hardware', []) or [])
+        active_lifecycle = set(body.get('lifecycle_nodes', []) or [])
+
+        hw_goals = []
+        for hw_name in sorted(universe_hardware):
+            hw_state = LifecycleState.ACTIVE if hw_name in active_hardware else LifecycleState.INACTIVE
+            hw_goals.append(Component(
+                name=hw_name,
+                component_type=ComponentType.HARDWARE,
+                lifecycle_state=hw_state
+            ))
+
+        ctrl_goals = []
+        for ctrl_name in sorted(universe_controllers):
+            ctrl_state = LifecycleState.ACTIVE if ctrl_name in active_controllers else LifecycleState.INACTIVE
+            ctrl_goals.append(Component(
+                name=ctrl_name,
+                component_type=ComponentType.CONTROLLER,
+                lifecycle_state=ctrl_state
+            ))
+
+        lc_goals = []
+        for lc_name in sorted(universe_lifecycle):
+            lc_state = LifecycleState.ACTIVE if lc_name in active_lifecycle else LifecycleState.INACTIVE
+            lc_goals.append(Component(
+                name=lc_name,
+                component_type=ComponentType.LIFECYCLE_NODE,
+                lifecycle_state=lc_state
+            ))
+
+        goals[name] = SystemGoal(
+            name=name,
+            hardware_goals=hw_goals,
+            controller_goals=ctrl_goals,
+            lifecycle_node_goals=lc_goals
+        )
+    return goals
+
+
 def parse_yaml_file(file_path: Path) -> ParsedScenario:
     """Parse a scenario YAML file into a ParsedScenario object."""
     with open(file_path, 'r') as f:
@@ -148,10 +221,20 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
             lifecycle_node_goals=lc_goals
         )
 
+    # Expand profiles into goals, alongside the goal_states above.
+    profiles = _collect_profiles(data)
+    if profiles:
+        profile_goals = _expand_profiles(profiles)
+        goals.update(profile_goals)
+        # make sure the monitor tracks every component a profile names
+        for g in profile_goals.values():
+            hardware = list(set(hardware) | {c.name for c in g.hardware_goals})
+            lifecycle_nodes = list(set(lifecycle_nodes) | {c.name for c in g.lifecycle_node_goals})
+
     metadata = {}
     known_keys = {'controller_manager', 'transition_pause', 'hardware', 'lifecycle_nodes', 'controllers', 'goal_states'}
     for key, value in data.items():
-        if key not in known_keys:
+        if key not in known_keys and key not in profiles:
             metadata[key] = value
     
     tracked_components = set(hardware + lifecycle_nodes)

@@ -1,0 +1,13 @@
+# Example profiles config used by test_parser_profiles.py.
+# A profile lists only the components that should be ACTIVE in that mode
+# every other name any profile mentions is set to INACTIVE.
+
+base:
+  controllers: [joint_state_broadcaster]
+  hardware: [RRBot]
+  lifecycle_nodes: [robot_manager]
+
+running:
+  controllers: [joint_state_broadcaster, forward_position_controller]
+  hardware: [RRBot]
+  lifecycle_nodes: [robot_manager]
