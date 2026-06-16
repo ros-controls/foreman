@@ -13,7 +13,8 @@ def minimal_foreman_config():
         transition_pause=0.0,
         hardware=["hw1"],
         dependency_rules=[],
-        goals={'active_goal': goal}
+        goals={'active_goal': goal},
+        tracked_components={"hw1"}
     )
 
 def test_engine_error_and_abort(minimal_foreman_config):
@@ -130,7 +131,8 @@ def lifecycle_foreman_config():
         hardware=[],
         dependency_rules=[],
         goals={'active_goal': goal},
-        lifecycle_nodes=["robot_manager"]
+        lifecycle_nodes=["robot_manager"],
+        tracked_components={"robot_manager"}
     )
 
 
@@ -222,7 +224,8 @@ def dependency_config():
         hardware=[],
         dependency_rules=rules,
         goals={'active': goal_missing_dep, 'active_full': goal_with_dep},
-        lifecycle_nodes=["robot_manager"]
+        lifecycle_nodes=["robot_manager"],
+        tracked_components={"gripper", "robot_manager"}
     )
 
 
