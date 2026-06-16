@@ -13,6 +13,7 @@ from foreman.engine import ForemanEngine
 class DatalayerAdapter:
     """
     Main facade for Foreman <-> Data Layer integration.
+
     This is a single adapter as it maintains a single DatalayerProvider with
     multiple nodes attached to it.
     """
@@ -30,7 +31,7 @@ class DatalayerAdapter:
         self.snapshot_type_path = "types/foreman/snapshot"
 
     def start(self) -> bool:
-        """Starts the system, provider, and registers all nodes."""
+        """Start the system, provider, and registers all nodes."""
         self.system = ctrlxdatalayer.system.System("")
         self.system.start(False)
 
@@ -69,7 +70,7 @@ class DatalayerAdapter:
         return True
 
     def stop(self):
-        """Tears down datalayer provider."""
+        """Tear down datalayer provider."""
         self.ros_logger.info("Stopping Datalayer adapter...")
         if self.snapshot_node:
             self.snapshot_node.unregister()

@@ -16,9 +16,7 @@ from foreman.types import ForemanErrorCategory
 
 
 class ForemanNode(Node):
-    """
-    Glues the Foreman Engine and its adapters.
-    """
+    """Glues the Foreman Engine and its adapters."""
 
     def __init__(self):
         super().__init__('foreman_node')
@@ -90,8 +88,7 @@ class ForemanNode(Node):
         self.counter = 0
 
     def callback_main_loop(self):
-        """Main loop."""
-
+        """Execute the main control loop."""
         # do we have an active transition running?
         if self._service_call_active_future and self._service_call_active_future.done():
             try:
@@ -161,7 +158,7 @@ class ForemanNode(Node):
             f"[{fault.category.value}] {fault.message}. Failed components: {fault.component_names}")
 
     def destroy_node(self):
-        """Safely stop adapters when shutting down node"""
+        """Safely stop adapters when shutting down node."""
         self.get_logger().info("Shutting down adapters...")
 
         if self.datalayer_adapter:

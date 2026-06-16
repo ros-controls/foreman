@@ -13,9 +13,7 @@ from foreman.engine import ForemanEngine
 
 
 class CtrlXNodeSnapshot(CtrlXNodeProviderBase):
-    """
-    Read-only node that serves the Foreman Engine state.
-    """
+    """Read-only node that serves the Foreman Engine state."""
 
     def __init__(self, provider: Provider, address: str, type_path: str, engine: ForemanEngine):
         self.engine = engine

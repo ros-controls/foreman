@@ -7,7 +7,8 @@ from foreman.types import ForemanParameters
 
 
 class RosNodeParameters:
-    """ROS2 adapter resolving node parameters"""
+    """ROS2 adapter resolving node parameters."""
+
     config_path: Path
 
     def __init__(self, node: Node):
@@ -16,13 +17,14 @@ class RosNodeParameters:
         self._declare_parameters()
 
     def _declare_parameters(self):
-        """Declare the expected ROS 2 parameters"""
+        """Declare the expected ROS 2 parameters."""
         # we can add more here if needed
         self._node.declare_parameter('config_path', '')
 
     def load_parameters(self) -> ForemanParameters:
         """
-        Reads the ROS parameters and returns the ForemanParameters struct.
+        Read the ROS parameters and returns the ForemanParameters struct.
+
         Raises ValueError or FileNotFoundError if invalid.
         """
         config_path_str = self._node.get_parameter('config_path').value

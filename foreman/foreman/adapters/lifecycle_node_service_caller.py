@@ -18,9 +18,7 @@ _TRANSITION_MAP = {
 
 
 class LifecycleNodeServiceCaller:
-    """
-    Adapter for transitioning lifecycle nodes. Uses /<node>/change_state service.
-    """
+    """Adapter for transitioning lifecycle nodes. Uses /<node>/change_state service."""
 
     def __init__(self, node: Node, lifecycle_nodes: List[str]):
         self._node = node

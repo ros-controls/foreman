@@ -5,9 +5,7 @@ from foreman_msgs.srv import SetGoal
 
 
 class RosSetGoalServer:
-    """
-    ROS 2 service to set a named goal for Foreman Engine
-    """
+    """ROS 2 service to set a named goal for Foreman Engine."""
 
     def __init__(self, node: Node, engine: ForemanEngine):
         self._node = node
@@ -27,7 +25,7 @@ class RosSetGoalServer:
         self._node.get_logger().info(f"{self.logger_prefix} Service /foreman/set_goal is ready.")
 
     def _handle_set_goal(self, request, response):
-        """Sets the target system state."""
+        """Set the target system state."""
         goal_name = request.goal
         # TODO: demote some of these to DEBUG logs.
         self._node.get_logger().info(

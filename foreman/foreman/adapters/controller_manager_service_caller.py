@@ -16,9 +16,7 @@ from foreman.types import SystemTransitionCommand
 
 
 class ControllerManagerServiceCaller:
-    """
-    Executes a list of SystemTransitionCommands using controller_manager ROS2 services.
-    """
+    """Executes a list of SystemTransitionCommands using controller_manager ROS2 services."""
 
     def __init__(self, node: Node, controller_manager_name: str):
         self._node = node
@@ -46,7 +44,7 @@ class ControllerManagerServiceCaller:
         return client.call_async(request)
 
     def execute_transition(self, cmd: SystemTransitionCommand) -> Future:
-        """Executes a single command and returns the Future."""
+        """Execute a single command and returns the Future."""
         name = cmd.component.name
         goal = cmd.goal_state
 

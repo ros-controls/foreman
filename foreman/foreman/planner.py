@@ -19,8 +19,9 @@ class Planner:
         self, current_state: SystemState, goal: SystemGoal
     ) -> Optional[SystemTransitionCommand]:
         """
-        Output the next transition based on named goal state and these priorities:
-            C deactivate > HW Down > HW Up > C cleanup > C config > C activate
+        Output the next transition based on named goal state and these priorities.
+
+        Priority: C deactivate > HW Down > HW Up > C cleanup > C config > C activate.
         """
         cmds_hw_step_up = []
         cmds_hw_step_down = []

@@ -7,9 +7,7 @@ from foreman.types import ForemanSnapshot
 
 
 def serialize_foreman_snapshot(snapshot: ForemanSnapshot) -> bytearray:
-    """
-    Converts the strongly-typed ForemanSnapshot into a FlatBuffer bytearray.
-    """
+    """Convert the strongly-typed ForemanSnapshot into a FlatBuffer bytearray."""
     builder = flatbuffers.Builder(1024)
 
     # deepest structures first! ComponentState and ErrorState list of components

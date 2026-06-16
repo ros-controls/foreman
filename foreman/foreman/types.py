@@ -10,6 +10,7 @@ from lifecycle_msgs.msg import State
 @dataclass
 class ForemanParameters:
     """Holds resolved Foreman parameters."""
+
     config_path: Path
     # later we can add or other parameters
     # timeout: float = 5.0
@@ -17,6 +18,7 @@ class ForemanParameters:
 
 class ForemanErrorCategory(Enum):
     """Categories of domain errors the system can encounter."""
+
     TRANSPORT = "TransportError"                # ROS service timeout, network issue
     EXECUTION = "ExecutionError"              # controller_manager rejected the command
     UNEXPECTED_STATE = "UnexpectedStateError"   # hardware crashed unprompted
@@ -27,6 +29,7 @@ class ForemanErrorCategory(Enum):
 @dataclass
 class ForemanError:
     """Domain representation of an error in the system."""
+
     category: ForemanErrorCategory
     message: str
     component_names: Optional[List[str]] = None
@@ -35,6 +38,7 @@ class ForemanError:
 @dataclass
 class ForemanResponse:
     """Standardized response for Engine API calls."""
+
     success: bool
     message: str
     error: Optional[ForemanError] = None

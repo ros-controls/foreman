@@ -19,6 +19,7 @@ from foreman.types import SystemTransitionCommand
 class ForemanEngine:
     """
     Foreman domain facade.
+
     All business logic is here, no ROS, just python.
     """
 
@@ -41,7 +42,8 @@ class ForemanEngine:
 
     def request_goal(self, goal_name: str) -> ForemanResponse:
         """
-        Request a new goal for the system
+        Request a new goal for the system.
+
         Returns: (success, message)
         """
         goal = self._config.goals.get(goal_name)
@@ -90,9 +92,7 @@ class ForemanEngine:
             self._locked_abort_transition()
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
-        """
-        Calculate the next step toward the goal.
-        """
+        """Calculate the next step toward the goal."""
         if not self._current_goal:
             return None
 
@@ -107,6 +107,7 @@ class ForemanEngine:
     def set_system_state(self, components: List[Component]) -> ForemanResponse:
         """
         Set internal system state to that which is observed.
+
         Monitors for unexpected changes in component state.
         """
         tracked_components = [c for c in components if c.name in self._config.tracked_components]
@@ -184,13 +185,11 @@ class ForemanEngine:
 
     @property
     def is_ready(self) -> bool:
-        """Is the system observed and ready to plan?"""
+        """Return True if the system is observed and ready to plan."""
         return self._is_ready
 
     def get_engine_snapshot(self) -> ForemanSnapshot:
-        """
-        Returns a simplified snapshot of the system state.
-        """
+        """Return a simplified snapshot of the system state."""
         with self._state_lock:
             return ForemanSnapshot(
                 goal=self.current_goal_name,
@@ -207,7 +206,8 @@ class ForemanEngine:
 
     def _locked_is_at_goal(self) -> bool:
         """
-        Checks if the current goal is reached.
+        Check if the current goal is reached.
+
         MUST be called while holding self._state_lock!
         """
         if not self._is_ready or not self._current_goal:
@@ -217,7 +217,9 @@ class ForemanEngine:
         return self._planner.get_next_transition(self._state, self._current_goal) is None
 
     def _locked_missing_goal_components(self, target_goal: SystemGoal) -> List[str]:
-        """Checks if all components in the target_goal are present in current state.
+        """
+        Check if all components in the target_goal are present in current state.
+
         Returns a list of missing components.
         MUST be called while holding self._state_lock!
         """
@@ -233,7 +235,8 @@ class ForemanEngine:
 
     def _locked_check_unsatisfiable_dependencies(self, goal: SystemGoal) -> List[str]:
         """
-        Validates that all controller dependencies in the goal can be satisfied.
+        Validate that all controller dependencies in the goal can be satisfied.
+
         A dependency is satisfiable if:
         - It is already at or above the required state in current observed state, OR
         - It is included in the goal's infrastructure targets at or above the required state.
@@ -281,7 +284,8 @@ class ForemanEngine:
 
     def _locked_abort_transition(self):
         """
-        Aborts any ongoing transitions.
+        Abort any ongoing transitions.
+
         MUST be called while holding self._state_lock!
         """
         if not self._is_ready:

@@ -9,7 +9,7 @@ def get_connection_string(
         user="boschrexroth",
         password="boschrexroth",
         ssl_port=443):
-    """Detects environment and combines a ctrlX Datalayer connection string."""
+    """Detect environment and combines a ctrlX Datalayer connection string."""
     if 'SNAP' in os.environ:
         return "ipc://"
 
@@ -24,7 +24,7 @@ def get_provider(system: ctrlxdatalayer.system.System,
                  user="boschrexroth",
                  password="boschrexroth",
                  ssl_port=443):
-    """Creates and starts a ctrlX Datalayer provider instance."""
+    """Create and start a ctrlX Datalayer provider instance."""
     conn_string = get_connection_string(ip, user, password, ssl_port)
     provider = system.factory().create_provider(conn_string)
 

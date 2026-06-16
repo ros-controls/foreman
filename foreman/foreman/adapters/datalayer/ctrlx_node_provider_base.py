@@ -8,9 +8,7 @@ from ctrlxdatalayer.variant import Variant
 
 
 class CtrlXNodeProviderBase:
-    """
-    Base class for ctrlX Data Layer provider nodes.
-    """
+    """Base class for ctrlX Data Layer provider nodes."""
 
     def __init__(self, provider: Provider, address: str, metadata: Variant):
         self.provider = provider

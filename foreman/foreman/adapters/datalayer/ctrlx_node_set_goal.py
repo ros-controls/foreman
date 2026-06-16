@@ -13,9 +13,7 @@ from foreman.engine import ForemanEngine
 
 
 class CtrlXNodeSetGoal(CtrlXNodeProviderBase):
-    """
-    Write-only node that receives target goals and forwards them to the Foreman Engine.
-    """
+    """Write-only node that receives target goals and forwards them to the Foreman Engine."""
 
     def __init__(self, provider: Provider, address: str, engine: ForemanEngine, ros_logger):
         self.engine = engine
@@ -30,7 +28,7 @@ class CtrlXNodeSetGoal(CtrlXNodeProviderBase):
         super().__init__(provider, address, metadata)
 
     def _on_write(self, userdata, address: str, data: Variant, cb: NodeCallback):
-        """Requests goal from Foreman Engine."""
+        """Request goal from Foreman Engine."""
         try:
             if data.get_type() != ctrlxdatalayer.variant.VariantType.STRING:
                 cb(Result.TYPE_MISMATCH, data)
