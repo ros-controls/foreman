@@ -1,17 +1,22 @@
-from ctrlxdatalayer.provider import Provider
-from ctrlxdatalayer.variant import Variant, Result
-from ctrlxdatalayer.provider_node import NodeCallback
-from ctrlxdatalayer.metadata_utils import MetadataBuilder, AllowedOperation, ReferenceType
 from comm.datalayer import NodeClass
+from ctrlxdatalayer.metadata_utils import AllowedOperation
+from ctrlxdatalayer.metadata_utils import MetadataBuilder
+from ctrlxdatalayer.metadata_utils import ReferenceType
+from ctrlxdatalayer.provider import Provider
+from ctrlxdatalayer.provider_node import NodeCallback
+from ctrlxdatalayer.variant import Result
+from ctrlxdatalayer.variant import Variant
 
 from foreman.adapters.datalayer.ctrlx_node_provider_base import CtrlXNodeProviderBase
-from foreman.engine import ForemanEngine
 from foreman.adapters.datalayer.flatbuffer_serialize import serialize_foreman_snapshot
+from foreman.engine import ForemanEngine
+
 
 class CtrlXNodeSnapshot(CtrlXNodeProviderBase):
     """
     Read-only node that serves the Foreman Engine state.
     """
+
     def __init__(self, provider: Provider, address: str, type_path: str, engine: ForemanEngine):
         self.engine = engine
 
@@ -28,7 +33,7 @@ class CtrlXNodeSnapshot(CtrlXNodeProviderBase):
         try:
             snapshot_data = self.engine.get_engine_snapshot()
             fbs_bytes = serialize_foreman_snapshot(snapshot_data)
-            
+
             v = Variant()
             v.set_flatbuffers(fbs_bytes)
             cb(Result.OK, v)

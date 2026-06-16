@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
-from typing import Dict, List, Optional
 from pathlib import Path
+from typing import Dict, List, Optional
 
 from lifecycle_msgs.msg import State
 
@@ -13,6 +13,7 @@ class ForemanParameters:
     config_path: Path
     # later we can add or other parameters
     # timeout: float = 5.0
+
 
 class ForemanErrorCategory(Enum):
     """Categories of domain errors the system can encounter."""
@@ -30,12 +31,14 @@ class ForemanError:
     message: str
     component_names: Optional[List[str]] = None
 
+
 @dataclass
 class ForemanResponse:
     """Standardized response for Engine API calls."""
     success: bool
     message: str
     error: Optional[ForemanError] = None
+
 
 class ComponentType(Enum):
     HARDWARE = 'hardware'
@@ -108,7 +111,7 @@ class Component:
 @dataclass
 class SystemState:
     """Current state of the control system. Populated from ControllerManager::Activity msg."""
-    
+
     components: Dict[str, Component] = field(default_factory=dict)
 
 
@@ -150,12 +153,15 @@ class SystemTransitionCommand:
         return f"TransitionCommand({c_type} '{self.component.name}' -> {self.goal_state.name})"
 
 # System snapshot, mimics flatbuffer schema
+
+
 @dataclass
 class ErrorSnapshot:
     is_error: bool
     category: str
     message: str
     components: List[str]
+
 
 @dataclass
 class ForemanSnapshot:

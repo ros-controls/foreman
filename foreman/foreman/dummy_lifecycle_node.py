@@ -6,7 +6,9 @@ Transition with: ros2 lifecycle set /dummy_lifecycle_node configure
 """
 
 import rclpy
-from rclpy.lifecycle import LifecycleNode, LifecycleState, TransitionCallbackReturn
+from rclpy.lifecycle import LifecycleNode
+from rclpy.lifecycle import LifecycleState
+from rclpy.lifecycle import TransitionCallbackReturn
 
 
 class DummyLifecycleNode(LifecycleNode):

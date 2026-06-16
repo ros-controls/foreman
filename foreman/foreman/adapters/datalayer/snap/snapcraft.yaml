@@ -34,7 +34,7 @@ parts:
   foreman-app:
     plugin: dump
     source: ./foreman_snap_install
-    stage-packages: 
+    stage-packages:
       - libpython3.12
     override-build: |
       craftctl default
@@ -45,7 +45,7 @@ parts:
     organize:
       entrypoint.sh: bin/entrypoint.sh
       foreman.default.env: etc/foreman.default.env
-      
+
 lint:
   ignore:
     - library:

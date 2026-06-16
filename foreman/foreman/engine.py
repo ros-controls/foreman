@@ -1,21 +1,20 @@
-from typing import List, Optional, Tuple
 import threading
+from typing import List, Optional, Tuple
 
-from foreman.planner import Planner
 from foreman.parser import ParsedScenario
-from foreman.types import (
-    Component,
-    ComponentType,
-    LifecycleState,
-    SystemState,
-    SystemTransitionCommand,
-    SystemGoal,
-    ForemanError,
-    ForemanResponse,
-    ForemanErrorCategory,
-    ErrorSnapshot,
-    ForemanSnapshot
-)
+from foreman.planner import Planner
+from foreman.types import Component
+from foreman.types import ComponentType
+from foreman.types import ErrorSnapshot
+from foreman.types import ForemanError
+from foreman.types import ForemanErrorCategory
+from foreman.types import ForemanResponse
+from foreman.types import ForemanSnapshot
+from foreman.types import LifecycleState
+from foreman.types import SystemGoal
+from foreman.types import SystemState
+from foreman.types import SystemTransitionCommand
+
 
 class ForemanEngine:
     """
@@ -30,7 +29,7 @@ class ForemanEngine:
         self._state_lock = state_lock
 
         self._current_goal = None
-        self._is_ready = False # when we get first /activity reading
+        self._is_ready = False  # when we get first /activity reading
         self._error_state: Optional[ForemanError] = None
         self._last_issued_command: Optional[SystemTransitionCommand] = None
 
@@ -48,7 +47,7 @@ class ForemanEngine:
         goal = self._config.goals.get(goal_name)
         if not goal:
             return ForemanResponse(False, f"Goal '{goal_name}' not found in configuration.")
-        
+
         with self._state_lock:
             if not self._is_ready:
                 return ForemanResponse(False, "Foreman not ready. Is /activity topic being published?")
@@ -56,7 +55,7 @@ class ForemanEngine:
             missing_components = self._locked_missing_goal_components(goal)
             if missing_components:
                 return ForemanResponse(
-                    False, 
+                    False,
                     f"Cannot accept goal '{goal_name}'. Missing components in observed state: {missing_components}"
                 )
 
@@ -69,20 +68,20 @@ class ForemanEngine:
                 )
 
             error_cleared_msg = "Error cleared on new goal. " if self._error_state else ""
-            self._error_state = None # new goal received, clear error and try again.
+            self._error_state = None  # new goal received, clear error and try again.
             self._last_issued_command = None
-            
+
             # TODO: minor. On first goal, if we're already at goal, we don't catch this, as self._current_goal == Null.
             # Fix this so we log "Already at goal"
             if self._current_goal == goal:
                 if self._locked_is_at_goal():
                     return ForemanResponse(True, f"Already at goal '{goal_name}'.")
                 return ForemanResponse(True, f"Already transitioning to '{goal_name}'.")
-                
+
             self._current_goal = goal
-        
+
         return ForemanResponse(True, f"{error_cleared_msg}Goal '{goal_name}' accepted.")
-    
+
     def abort_goal(self, error: ForemanError):
         """Aborts the current goal by stopping transitions."""
         with self._state_lock:
@@ -100,11 +99,11 @@ class ForemanEngine:
         with self._state_lock:
             if not self._is_ready or self._error_state:
                 return None
-            
+
             cmd = self._planner.get_next_transition(self._state, self._current_goal)
             self._last_issued_command = cmd
             return cmd
-            
+
     def set_system_state(self, components: List[Component]) -> ForemanResponse:
         """
         Set internal system state to that which is observed.
@@ -115,16 +114,16 @@ class ForemanEngine:
         with self._state_lock:
             # overwrite existing state
             previous_state = self._state.components
-            
+
             self._state.components = {comp.name: comp for comp in tracked_components}
-            
+
             was_ready = self._is_ready
             self._is_ready = True
 
             # In these cases, we just observe state
-            if (self._error_state or 
+            if (self._error_state or
                 not was_ready or
-                not self._current_goal):
+                    not self._current_goal):
                 return ForemanResponse(True, "System state observed.")
 
             # otherwise, check for anomalies among components listed in yaml file
@@ -135,8 +134,8 @@ class ForemanEngine:
                 existing = previous_state.get(incoming.name)
                 if existing and incoming.lifecycle_state != existing.lifecycle_state:
                     expected = (
-                        self._last_issued_command and 
-                        self._last_issued_command.component.name == incoming.name and 
+                        self._last_issued_command and
+                        self._last_issued_command.component.name == incoming.name and
                         self._last_issued_command.goal_state == incoming.lifecycle_state
                     )
                     if not expected:
@@ -151,11 +150,12 @@ class ForemanEngine:
             if unexpected_changes or missing_components:
                 error_msgs = []
                 error_components = []
-                
+
                 if missing_components:
-                    error_msgs.append(f"Required components vanished from /activity: {missing_components}")
+                    error_msgs.append(
+                        f"Required components vanished from /activity: {missing_components}")
                     error_components.extend(missing_components)
-                    
+
                 if unexpected_changes:
                     msgs = [f"{name} ({old}->{new})" for name, old, new in unexpected_changes]
                     error_msgs.append(f"Unexpected state changes: {', '.join(msgs)}")
@@ -166,13 +166,13 @@ class ForemanEngine:
                     message="Aborting transition:\n  - " + "\n  - ".join(error_msgs),
                     component_names=list(set(error_components))
                 )
-                
+
                 self._last_issued_command = None
                 self._locked_abort_transition()
 
                 return ForemanResponse(
-                    success=False, 
-                    message="Unexpected system state.", 
+                    success=False,
+                    message="Unexpected system state.",
                     error=self._error_state
                 )
 
@@ -192,7 +192,7 @@ class ForemanEngine:
         Returns a simplified snapshot of the system state.
         """
         with self._state_lock:
-             return ForemanSnapshot(
+            return ForemanSnapshot(
                 goal=self.current_goal_name,
                 ready=self._is_ready,
                 at_goal=self._locked_is_at_goal(),
@@ -212,7 +212,7 @@ class ForemanEngine:
         """
         if not self._is_ready or not self._current_goal:
             return False
-        
+
         # If planner returns nothing, we have reached the goal state
         return self._planner.get_next_transition(self._state, self._current_goal) is None
 
@@ -225,7 +225,7 @@ class ForemanEngine:
         all_component_goals = (
             target_goal.hardware_goals + target_goal.controller_goals + target_goal.lifecycle_node_goals
         )
-        
+
         for component_goal in all_component_goals:
             if component_goal.name not in self._state.components:
                 missing.append(component_goal.name)
@@ -240,13 +240,13 @@ class ForemanEngine:
         Returns a list of error strings. Empty = all satisfiable.
         MUST be called while holding self._state_lock!
         """
-        # TODO: refactor naming. Unfortunately, we treat lifecycle nodes same as hardware, so 
-        # in places, like rule.required_hardware, we are thinking about lifecycle nodes as well. 
+        # TODO: refactor naming. Unfortunately, we treat lifecycle nodes same as hardware, so
+        # in places, like rule.required_hardware, we are thinking about lifecycle nodes as well.
         # Lets use "infrastructure" for now to mean both of those
         goal_infrastructure_states = {}
         for comp in goal.hardware_goals + goal.lifecycle_node_goals:
             goal_infrastructure_states[comp.name] = comp.lifecycle_state
-            
+
         errors = []
         for ctrl_goal in goal.controller_goals:
             rule = self._planner.rules.get(ctrl_goal.name)

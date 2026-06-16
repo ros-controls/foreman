@@ -19,7 +19,7 @@ class Planner:
         self, current_state: SystemState, goal: SystemGoal
     ) -> Optional[SystemTransitionCommand]:
         """
-        Output the next transition based on named goal state and these priorities: 
+        Output the next transition based on named goal state and these priorities:
             C deactivate > HW Down > HW Up > C cleanup > C config > C activate
         """
         cmds_hw_step_up = []
@@ -51,7 +51,8 @@ class Planner:
             if next_state:
                 if next_state < infra_component.lifecycle_state:
                     if not self._can_hardware_step_down(infra_component.name, next_state, current_state):
-                        cmds_hw_step_down.append(SystemTransitionCommand(infra_component, next_state))
+                        cmds_hw_step_down.append(
+                            SystemTransitionCommand(infra_component, next_state))
 
                 cmds_hw_step_up.append(SystemTransitionCommand(infra_component, next_state))
 
@@ -66,11 +67,12 @@ class Planner:
                     LifecycleState.UNCONFIGURED
                 )
 
-            next_state = controller_component.lifecycle_state.step_towards(controller_goal.lifecycle_state)
+            next_state = controller_component.lifecycle_state.step_towards(
+                controller_goal.lifecycle_state)
 
             if next_state:
                 current = controller_component.lifecycle_state
-                
+
                 if next_state > current:
                     # Guard activation AND configuration against hardware states
                     if not self._can_controller_step_up(controller_goal.name, next_state, current_state):
@@ -78,22 +80,32 @@ class Planner:
 
                 # Categorize into the appropriate phase
                 if current == LifecycleState.ACTIVE and next_state == LifecycleState.INACTIVE:
-                    cmds_ctrl_deactivate.append(SystemTransitionCommand(controller_component, next_state))
+                    cmds_ctrl_deactivate.append(
+                        SystemTransitionCommand(controller_component, next_state))
                 elif current == LifecycleState.INACTIVE and next_state == LifecycleState.ACTIVE:
-                    cmds_ctrl_activate.append(SystemTransitionCommand(controller_component, next_state))
+                    cmds_ctrl_activate.append(SystemTransitionCommand(
+                        controller_component, next_state))
                 elif current == LifecycleState.UNCONFIGURED and next_state == LifecycleState.INACTIVE:
-                    cmds_ctrl_config.append(SystemTransitionCommand(controller_component, next_state))
+                    cmds_ctrl_config.append(SystemTransitionCommand(
+                        controller_component, next_state))
                 elif current == LifecycleState.INACTIVE and next_state == LifecycleState.UNCONFIGURED:
-                    cmds_ctrl_cleanup.append(SystemTransitionCommand(controller_component, next_state))
+                    cmds_ctrl_cleanup.append(SystemTransitionCommand(
+                        controller_component, next_state))
 
         # Strict order for issuing next command
         # C deactivate > HW Down > HW Up > C cleanup > C config > C activate
-        if cmds_ctrl_deactivate: return cmds_ctrl_deactivate[0]
-        if cmds_hw_step_down: return cmds_hw_step_down[0]
-        if cmds_hw_step_up: return cmds_hw_step_up[0]
-        if cmds_ctrl_cleanup: return cmds_ctrl_cleanup[0]
-        if cmds_ctrl_config: return cmds_ctrl_config[0]
-        if cmds_ctrl_activate: return cmds_ctrl_activate[0]
+        if cmds_ctrl_deactivate:
+            return cmds_ctrl_deactivate[0]
+        if cmds_hw_step_down:
+            return cmds_hw_step_down[0]
+        if cmds_hw_step_up:
+            return cmds_hw_step_up[0]
+        if cmds_ctrl_cleanup:
+            return cmds_ctrl_cleanup[0]
+        if cmds_ctrl_config:
+            return cmds_ctrl_config[0]
+        if cmds_ctrl_activate:
+            return cmds_ctrl_activate[0]
 
     def _can_controller_step_up(self, ctrl_name: str, next_ctrl_state: LifecycleState, current_state: SystemState) -> bool:
         """Check if hardware dependencies are met for configuring or activating a controller."""
@@ -103,7 +115,7 @@ class Planner:
 
         for req in rule.required_hardware:
             hw_component = current_state.components.get(req.name)
-            
+
             if not hw_component:
                 return False
 

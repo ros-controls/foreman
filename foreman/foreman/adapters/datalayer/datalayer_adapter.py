@@ -1,12 +1,14 @@
 import os
+
+from ament_index_python.packages import get_package_share_directory
 import ctrlxdatalayer
 from ctrlxdatalayer.variant import Result
-from ament_index_python.packages import get_package_share_directory
 
-from foreman.engine import ForemanEngine
 from foreman.adapters.datalayer.ctrlx_connection import get_provider
-from foreman.adapters.datalayer.ctrlx_node_snapshot import CtrlXNodeSnapshot
 from foreman.adapters.datalayer.ctrlx_node_set_goal import CtrlXNodeSetGoal
+from foreman.adapters.datalayer.ctrlx_node_snapshot import CtrlXNodeSnapshot
+from foreman.engine import ForemanEngine
+
 
 class DatalayerAdapter:
     """
@@ -14,13 +16,14 @@ class DatalayerAdapter:
     This is a single adapter as it maintains a single DatalayerProvider with
     multiple nodes attached to it.
     """
+
     def __init__(self, ros_logger, engine: ForemanEngine):
         self.ros_logger = ros_logger
         self.engine = engine
-        
+
         self.system = None
         self.provider = None
-        
+
         self.snapshot_node = None
         self.set_goal_node = None
 
@@ -44,7 +47,7 @@ class DatalayerAdapter:
         if self.provider.register_type(self.snapshot_type_path, bfbs_path) != Result.OK:
             self.ros_logger.error("Failed to register ForemanSnapshot type.")
             return False
-            
+
         # register nodes
         self.snapshot_node = CtrlXNodeSnapshot(
             provider=self.provider,

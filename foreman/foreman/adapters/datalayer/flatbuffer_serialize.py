@@ -1,8 +1,10 @@
 import flatbuffers
+
 import foreman.fbs.ComponentState
 import foreman.fbs.ErrorState
 import foreman.fbs.ForemanSnapshot
 from foreman.types import ForemanSnapshot
+
 
 def serialize_foreman_snapshot(snapshot: ForemanSnapshot) -> bytearray:
     """
@@ -13,10 +15,10 @@ def serialize_foreman_snapshot(snapshot: ForemanSnapshot) -> bytearray:
     # deepest structures first! ComponentState and ErrorState list of components
     # saving offsets for strings, or other complex types (tables, lists...). Basic types can be added directly.
     err_comp_offsets = [builder.CreateString(c) for c in snapshot.error.components]
-    
+
     foreman.fbs.ErrorState.StartComponentsVector(builder, len(err_comp_offsets))
     # push in REVERSE!
-    for offset in reversed(err_comp_offsets): 
+    for offset in reversed(err_comp_offsets):
         builder.PrependUOffsetTRelative(offset)
     err_comp_vec_offset = builder.EndVector()
 
@@ -28,13 +30,13 @@ def serialize_foreman_snapshot(snapshot: ForemanSnapshot) -> bytearray:
         name_offset = builder.CreateString(comp.name)
         state_offset = builder.CreateString(comp.lifecycle_state.name)
         type_offset = builder.CreateString(comp.component_type.value)
-        
+
         foreman.fbs.ComponentState.Start(builder)
         foreman.fbs.ComponentState.AddName(builder, name_offset)
         foreman.fbs.ComponentState.AddState(builder, state_offset)
         foreman.fbs.ComponentState.AddComponentType(builder, type_offset)
-        comp_offsets.append(foreman.fbs.ComponentState.End(builder)) 
-    
+        comp_offsets.append(foreman.fbs.ComponentState.End(builder))
+
     foreman.fbs.ForemanSnapshot.StartComponentsVector(builder, len(comp_offsets))
     for offset in reversed(comp_offsets):
         builder.PrependUOffsetTRelative(offset)
@@ -46,7 +48,7 @@ def serialize_foreman_snapshot(snapshot: ForemanSnapshot) -> bytearray:
     foreman.fbs.ErrorState.Start(builder)
     foreman.fbs.ErrorState.AddIsError(builder, snapshot.error.is_error)
     foreman.fbs.ErrorState.AddCategory(builder, err_category_offset)
-        
+
     foreman.fbs.ErrorState.AddMessage(builder, err_msg_offset)
     foreman.fbs.ErrorState.AddComponents(builder, err_comp_vec_offset)
     error_state_offset = foreman.fbs.ErrorState.End(builder)
