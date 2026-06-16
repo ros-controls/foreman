@@ -8,7 +8,7 @@ set -e
 # This will create the necessary flatbuffer files.
 
 # Then, use colcon in the root of your workspace, but install files in foreman.
-# Then we dump the isntalled files in the snap. 
+# Then we dump the isntalled files in the snap.
 #
 # colcon build --packages-up-to foreman --install-base src/foreman/foreman/foreman/adapters/datalayer/snap/foreman_snap_install
 #

@@ -1,15 +1,20 @@
 from typing import Dict, List
 
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from rclpy.event_handler import SubscriptionEventCallbacks, QoSSubscriptionMatchedInfo
-
 from controller_manager_msgs.msg import ControllerManagerActivity
-from lifecycle_msgs.srv import GetState
 from lifecycle_msgs.msg import TransitionEvent
+from lifecycle_msgs.srv import GetState
+from rclpy.event_handler import QoSSubscriptionMatchedInfo
+from rclpy.event_handler import SubscriptionEventCallbacks
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy
+from rclpy.qos import HistoryPolicy
+from rclpy.qos import QoSProfile
+from rclpy.qos import ReliabilityPolicy
 
 from foreman.engine import ForemanEngine
-from foreman.types import Component, ComponentType, LifecycleState
+from foreman.types import Component
+from foreman.types import ComponentType
+from foreman.types import LifecycleState
 
 
 class ComponentStateMonitor:
@@ -79,7 +84,8 @@ class ComponentStateMonitor:
             self._node.create_subscription(
                 TransitionEvent,
                 f'/{lc_node_name}/transition_event',
-                callback=lambda msg, n=lc_node_name: self._lifecycle_transition_event_callback(n, msg),
+                callback=lambda msg, n=lc_node_name: self._lifecycle_transition_event_callback(
+                    n, msg),
                 qos_profile=10,
                 event_callbacks=event_callbacks,
                 callback_group=self._node.callback_group_subscriber
@@ -186,7 +192,8 @@ class ComponentStateMonitor:
         response = self._engine.set_system_state(all_components)
 
         if not was_ready and self._engine.is_ready:
-            self._node.get_logger().info(f"{self._logger_prefix} Foreman is READY. Fresh state received.")
+            self._node.get_logger().info(
+                f"{self._logger_prefix} Foreman is READY. Fresh state received.")
 
         if not response.success and response.error:
             self._node.get_logger().error(

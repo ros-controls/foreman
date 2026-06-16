@@ -25,7 +25,7 @@ controllers:
   joint_state_broadcaster:
     requires: [all, inactive]
   kassow_joint_trajectory_controller:
-    requires: 
+    requires:
       - [kassow, active]
       - [my_node, active]
   franka_joint_trajectory_controller:
@@ -43,7 +43,7 @@ goal_states:
       kassow: inactive
     lifecycle_nodes:
       my_node: active
-  
+
   # ... more named states
 ```
 

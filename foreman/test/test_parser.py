@@ -1,15 +1,15 @@
-import pytest
 from pathlib import Path
 
-from foreman.parser import ParsedScenario, parse_yaml_file
-from foreman.types import (
-    Component,
-    ComponentType,
-    ControllerDependencyRule,
-    HardwareRequirement,
-    LifecycleState,
-    SystemGoal,
-)
+import pytest
+
+from foreman.parser import parse_yaml_file
+from foreman.parser import ParsedScenario
+from foreman.types import Component
+from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
+from foreman.types import HardwareRequirement
+from foreman.types import LifecycleState
+from foreman.types import SystemGoal
 
 
 @pytest.fixture
@@ -50,24 +50,28 @@ class TestDependencyRules:
         assert len(parsed_scenario.dependency_rules) == 3
 
     def test_joint_state_broadcaster_rule(self, parsed_scenario):
-        rule = next(r for r in parsed_scenario.dependency_rules if r.controller_name == "joint_state_broadcaster")
+        rule = next(r for r in parsed_scenario.dependency_rules if r.controller_name ==
+                    "joint_state_broadcaster")
         assert rule.controller_name == "joint_state_broadcaster"
         assert len(rule.required_hardware) == 3
         reqs_by_name = {req.name: req for req in rule.required_hardware}
-        assert set(reqs_by_name.keys()) == {"FrankaHardwareInterface", "kassow", "dummy_lifecycle_node"}
+        assert set(reqs_by_name.keys()) == {
+            "FrankaHardwareInterface", "kassow", "dummy_lifecycle_node"}
         assert reqs_by_name["kassow"].state == LifecycleState.INACTIVE
         assert reqs_by_name["FrankaHardwareInterface"].state == LifecycleState.INACTIVE
         assert reqs_by_name["dummy_lifecycle_node"].state == LifecycleState.ACTIVE
 
     def test_kassow_jtc_rule(self, parsed_scenario):
-        rule = next(r for r in parsed_scenario.dependency_rules if r.controller_name == "kassow_joint_trajectory_controller")
+        rule = next(r for r in parsed_scenario.dependency_rules if r.controller_name ==
+                    "kassow_joint_trajectory_controller")
         assert rule.controller_name == "kassow_joint_trajectory_controller"
         assert len(rule.required_hardware) == 1
         assert rule.required_hardware[0].name == "kassow"
         assert rule.required_hardware[0].state == LifecycleState.ACTIVE
 
     def test_franka_jtc_rule(self, parsed_scenario):
-        rule = next(r for r in parsed_scenario.dependency_rules if r.controller_name == "franka_joint_trajectory_controller")
+        rule = next(r for r in parsed_scenario.dependency_rules if r.controller_name ==
+                    "franka_joint_trajectory_controller")
         assert rule.controller_name == "franka_joint_trajectory_controller"
         assert len(rule.required_hardware) == 1
         assert rule.required_hardware[0].name == "FrankaHardwareInterface"
@@ -92,7 +96,8 @@ class TestGoalStates:
 
         assert len(goal.controller_goals) == 3
         ctrl_names = {c.name for c in goal.controller_goals}
-        assert ctrl_names == {"joint_state_broadcaster", "kassow_joint_trajectory_controller", "franka_joint_trajectory_controller"}
+        assert ctrl_names == {"joint_state_broadcaster",
+                              "kassow_joint_trajectory_controller", "franka_joint_trajectory_controller"}
         for ctrl in goal.controller_goals:
             assert ctrl.lifecycle_state == LifecycleState.INACTIVE
 

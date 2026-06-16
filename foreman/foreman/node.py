@@ -1,21 +1,22 @@
-import threading
 import sys
+import threading
 
 import rclpy
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 from foreman import adapters
-from foreman.parser import parse_yaml_file
 from foreman.engine import ForemanEngine
-from foreman.types import ComponentType, ForemanError, ForemanErrorCategory
+from foreman.parser import parse_yaml_file
+from foreman.types import ComponentType
+from foreman.types import ForemanError
+from foreman.types import ForemanErrorCategory
 
 
 class ForemanNode(Node):
-    """
-    Glues the Foreman Engine and its adapters.
-    """
+    """Glues the Foreman Engine and its adapters."""
 
     def __init__(self):
         super().__init__('foreman_node')
@@ -23,13 +24,13 @@ class ForemanNode(Node):
         self.foreman_state_lock = threading.Lock()
         # for error handling ,so we know what and when failed and who to blame
         self._service_call_active_future = False
-        self._active_transition = None 
+        self._active_transition = None
         self.last_transition_time = self.get_clock().now()
 
         self.callback_group_services = MutuallyExclusiveCallbackGroup()
         self.callback_group_subscriber = ReentrantCallbackGroup()
         self.callback_group_timer = MutuallyExclusiveCallbackGroup()
-        
+
         # CONFIG  =============================================
         self.ros_node_parameters = adapters.RosNodeParameters(node=self)
         self.foreman_parameters = self.ros_node_parameters.load_parameters()
@@ -57,7 +58,7 @@ class ForemanNode(Node):
         )
 
         self.ros_set_goal_server = adapters.RosSetGoalServer(
-            node=self, 
+            node=self,
             engine=self.foreman_engine
         )
 
@@ -66,8 +67,8 @@ class ForemanNode(Node):
         # RUN everything at 10HZ
         # TODO: Configure this?
         self.timer = self.create_timer(
-            0.1, 
-            self.callback_main_loop, 
+            0.1,
+            self.callback_main_loop,
             callback_group=self.callback_group_timer
         )
         # TODO: Add pretty print of current state and read config?
@@ -76,7 +77,8 @@ class ForemanNode(Node):
         # If available, start the datalayer adapter
         datalayer_available = True if adapters.DatalayerAdapter else None
         if datalayer_available:
-            self.datalayer_adapter = adapters.DatalayerAdapter(ros_logger=self.get_logger(), engine=self.foreman_engine)
+            self.datalayer_adapter = adapters.DatalayerAdapter(
+                ros_logger=self.get_logger(), engine=self.foreman_engine)
             self.get_logger().info("Datalayer adapter initialized.")
             datalayer_available = self.datalayer_adapter.start()
 
@@ -86,8 +88,7 @@ class ForemanNode(Node):
         self.counter = 0
 
     def callback_main_loop(self):
-        """Main loop."""
-
+        """Execute the main control loop."""
         # do we have an active transition running?
         if self._service_call_active_future and self._service_call_active_future.done():
             try:
@@ -123,12 +124,12 @@ class ForemanNode(Node):
         # prevent concurrent service calls to components
         if self._service_call_active_future:
             return
-        
+
         # throttle transitions by transition_pause
         time_since_last = (self.get_clock().now() - self.last_transition_time).nanoseconds / 1e9
         if time_since_last < self.foreman_config.transition_pause:
             return
-        
+
         # Ok, now we get next command
         command = self.foreman_engine.get_next_transition()
         if not command:
@@ -137,9 +138,11 @@ class ForemanNode(Node):
         try:
             self._active_transition = command
             if command.component.component_type == ComponentType.LIFECYCLE_NODE:
-                self._service_call_active_future = self.lifecycle_node_service_caller.execute_transition(command)
+                self._service_call_active_future = self.lifecycle_node_service_caller.execute_transition(
+                    command)
             else:
-                self._service_call_active_future = self.controller_manager_service_caller.execute_transition(command)
+                self._service_call_active_future = self.controller_manager_service_caller.execute_transition(
+                    command)
         except Exception as e:
             fault = ForemanError(
                 category=ForemanErrorCategory.EXECUTION,
@@ -151,10 +154,11 @@ class ForemanNode(Node):
 
     def _log_and_abort_goal(self, fault: ForemanError):
         self.foreman_engine.abort_goal(fault)
-        self.get_logger().error(f"[{fault.category.value}] {fault.message}. Failed components: {fault.component_names}")
+        self.get_logger().error(
+            f"[{fault.category.value}] {fault.message}. Failed components: {fault.component_names}")
 
     def destroy_node(self):
-        """Safely stop adapters when shutting down node"""
+        """Safely stop adapters when shutting down node."""
         self.get_logger().info("Shutting down adapters...")
 
         if self.datalayer_adapter:
@@ -162,14 +166,15 @@ class ForemanNode(Node):
                 self.datalayer_adapter.stop()
             except Exception as e:
                 self.get_logger().error(f"Failed to stop datalayer adapter: {e}")
-        
+
         super().destroy_node()
+
 
 def main(args=None):
     rclpy.init(args=args)
-    
+
     try:
-        node = ForemanNode() 
+        node = ForemanNode()
     except Exception as e:
         print(f"[FATAL] [foreman_node]: Failed to initialize: {e}", file=sys.stderr)
         rclpy.shutdown()
@@ -177,7 +182,7 @@ def main(args=None):
 
     executor = MultiThreadedExecutor()
     executor.add_node(node)
-    
+
     try:
         executor.spin()
     except KeyboardInterrupt:
@@ -187,6 +192,7 @@ def main(args=None):
             node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

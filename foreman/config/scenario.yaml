@@ -11,7 +11,7 @@ lifecycle_nodes:
 
 controllers:
   joint_state_broadcaster:
-    requires: 
+    requires:
       - [kassow, inactive]
       - [FrankaHardwareInterface, inactive]
       - [dummy_lifecycle_node, active]

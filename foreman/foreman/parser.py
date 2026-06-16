@@ -1,22 +1,22 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
 import yaml
 
-from foreman.types import (
-    Component,
-    ComponentType,
-    ControllerDependencyRule,
-    HardwareRequirement,
-    LifecycleState,
-    SystemGoal,
-)
+from foreman.types import Component
+from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
+from foreman.types import HardwareRequirement
+from foreman.types import LifecycleState
+from foreman.types import SystemGoal
 
 # TODO: Once we settle on a config model
 # TODO: Bulletproof this config parsing once we settle on one
 # TODO: reconsider naming, for example ParsedScenario
 # TODO: Rethink parsing output structure dataclass
+
 
 @dataclass
 class ParsedScenario:
@@ -74,7 +74,7 @@ def parse_requires(
     for req in requires_normalized:
         if not isinstance(req, list) or len(req) != 2:
             raise ValueError(f"Invalid requirement format: {req}. Expected [target, state].")
-            
+
         target = req[0]
         state = parse_state_string(req[1])
 
@@ -149,11 +149,12 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     metadata = {}
-    known_keys = {'controller_manager', 'transition_pause', 'hardware', 'lifecycle_nodes', 'controllers', 'goal_states'}
+    known_keys = {'controller_manager', 'transition_pause',
+                  'hardware', 'lifecycle_nodes', 'controllers', 'goal_states'}
     for key, value in data.items():
         if key not in known_keys:
             metadata[key] = value
-    
+
     tracked_components = set(hardware + lifecycle_nodes)
     for rule in dependency_rules:
         tracked_components.add(rule.controller_name)
