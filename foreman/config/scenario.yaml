@@ -1,7 +1,5 @@
 controller_manager: b_controlled_box_cm
 
-transition_pause: 0.5
-
 hardware:
   - FrankaHardwareInterface
   - kassow

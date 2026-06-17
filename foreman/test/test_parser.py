@@ -30,9 +30,6 @@ class TestParsedScenario:
     def test_controller_manager(self, parsed_scenario):
         assert parsed_scenario.controller_manager == "b_controlled_box_cm"
 
-    def test_transition_pause(self, parsed_scenario):
-        assert parsed_scenario.transition_pause == 0.5
-
     def test_hardware_list(self, parsed_scenario):
         assert parsed_scenario.hardware == ["FrankaHardwareInterface", "kassow"]
 

@@ -25,7 +25,6 @@ class ForemanNode(Node):
         # for error handling ,so we know what and when failed and who to blame
         self._service_call_active_future = False
         self._active_transition = None
-        self.last_transition_time = self.get_clock().now()
 
         self.callback_group_services = MutuallyExclusiveCallbackGroup()
         self.callback_group_subscriber = ReentrantCallbackGroup()
@@ -119,15 +118,9 @@ class ForemanNode(Node):
             finally:
                 self._service_call_active_future = None
                 self._active_transition = None
-                self.last_transition_time = self.get_clock().now()
 
         # prevent concurrent service calls to components
         if self._service_call_active_future:
-            return
-
-        # throttle transitions by transition_pause
-        time_since_last = (self.get_clock().now() - self.last_transition_time).nanoseconds / 1e9
-        if time_since_last < self.foreman_config.transition_pause:
             return
 
         # Ok, now we get next command
