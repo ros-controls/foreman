@@ -140,7 +140,7 @@ class ComponentStateMonitor:
                 component_type=ComponentType.LIFECYCLE_NODE,
                 lifecycle_state=LifecycleState.FINALIZED
             )
-            self._node.get_logger().warn(
+            self._node.get_logger().warning(
                 f"{self._logger_prefix} Lifecycle node '{name}' disconnected."
             )
             self._push_merged_state()
@@ -167,7 +167,7 @@ class ComponentStateMonitor:
             self._push_merged_state()
 
         except Exception as e:
-            self._node.get_logger().warn(
+            self._node.get_logger().warning(
                 f"{self._logger_prefix} Failed to get state for '{name}': {e}"
             )
 

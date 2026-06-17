@@ -37,7 +37,7 @@ class RosSetGoalServer:
         response.message = engine_response.message
 
         if not engine_response.success:
-            self._node.get_logger().warn(f"{engine_response.message}")
+            self._node.get_logger().warning(f"{engine_response.message}")
         else:
             self._node.get_logger().info(f"{engine_response.message}")
 
