@@ -23,7 +23,6 @@ class ParsedScenario:
     """Complete parsed scenario configuration."""
 
     controller_manager: str
-    transition_pause: float
     hardware: List[str]
     dependency_rules: List[ControllerDependencyRule]
     goals: Dict[str, SystemGoal]
@@ -98,7 +97,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         raise ValueError("Empty YAML file")
 
     controller_manager = data.get('controller_manager', '')
-    transition_pause = data.get('transition_pause', 0.0)
     hardware = data.get('hardware', [])
     lifecycle_nodes = data.get('lifecycle_nodes', [])
 
@@ -149,8 +147,8 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     metadata = {}
-    known_keys = {'controller_manager', 'transition_pause',
-                  'hardware', 'lifecycle_nodes', 'controllers', 'goal_states'}
+    known_keys = {'controller_manager', 'hardware',
+                  'lifecycle_nodes', 'controllers', 'goal_states'}
     for key, value in data.items():
         if key not in known_keys:
             metadata[key] = value
@@ -165,7 +163,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
 
     return ParsedScenario(
         controller_manager=controller_manager,
-        transition_pause=transition_pause,
         hardware=hardware,
         lifecycle_nodes=lifecycle_nodes,
         dependency_rules=dependency_rules,
