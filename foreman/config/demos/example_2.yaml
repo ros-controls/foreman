@@ -1,0 +1,10 @@
+controller_manager: controller_manager
+transition_pause: 0.5
+ 
+base:
+  controllers: [joint_state_broadcaster]
+  hardware:    [DiffBot]
+ 
+running:
+  controllers: [joint_state_broadcaster, diffbot_base_controller]
+  hardware:    [DiffBot]
