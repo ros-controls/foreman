@@ -1,5 +1,3 @@
-controller_manager: b_controlled_box_cm
-
 hardware:
   - FrankaHardwareInterface
   - kassow

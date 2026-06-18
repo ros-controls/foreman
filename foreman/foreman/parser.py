@@ -22,7 +22,6 @@ from foreman.types import SystemGoal
 class ParsedScenario:
     """Complete parsed scenario configuration."""
 
-    controller_manager: str
     hardware: List[str]
     dependency_rules: List[ControllerDependencyRule]
     goals: Dict[str, SystemGoal]
@@ -96,7 +95,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     if data is None:
         raise ValueError("Empty YAML file")
 
-    controller_manager = data.get('controller_manager', '')
     hardware = data.get('hardware', [])
     lifecycle_nodes = data.get('lifecycle_nodes', [])
 
@@ -147,7 +145,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     metadata = {}
-    known_keys = {'controller_manager', 'hardware',
+    known_keys = {'hardware',
                   'lifecycle_nodes', 'controllers', 'goal_states'}
     for key, value in data.items():
         if key not in known_keys:
@@ -162,7 +160,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         tracked_components.update(c.name for c in goal.lifecycle_node_goals)
 
     return ParsedScenario(
-        controller_manager=controller_manager,
         hardware=hardware,
         lifecycle_nodes=lifecycle_nodes,
         dependency_rules=dependency_rules,

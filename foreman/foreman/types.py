@@ -12,6 +12,7 @@ class ForemanParameters:
     """Holds resolved Foreman parameters."""
 
     config_path: Path
+    controller_manager: str = 'controller_manager'
     # later we can add or other parameters
     # timeout: float = 5.0
 
