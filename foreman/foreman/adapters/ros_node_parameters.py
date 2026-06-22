@@ -20,6 +20,7 @@ class RosNodeParameters:
         """Declare the expected ROS 2 parameters."""
         # we can add more here if needed
         self._node.declare_parameter('config_path', '')
+        self._node.declare_parameter('controller_manager', 'controller_manager')
 
     def load_parameters(self) -> ForemanParameters:
         """
@@ -28,6 +29,7 @@ class RosNodeParameters:
         Raises ValueError or FileNotFoundError if invalid.
         """
         config_path_str = self._node.get_parameter('config_path').value
+        controller_manager = self._node.get_parameter('controller_manager').value
 
         if not config_path_str:
             raise ValueError(
@@ -40,5 +42,6 @@ class RosNodeParameters:
             raise FileNotFoundError(f"Configuration file not found at: {resolved_path.absolute()}")
 
         return ForemanParameters(
-            config_path=resolved_path
+            config_path=resolved_path,
+            controller_manager=controller_manager,
         )

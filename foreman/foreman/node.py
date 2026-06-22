@@ -39,7 +39,7 @@ class ForemanNode(Node):
         self.foreman_engine = ForemanEngine(self.foreman_config, self.foreman_state_lock)
 
         # ADAPTERS ================================================
-        controller_manager_name = self.foreman_config.controller_manager
+        controller_manager_name = self.foreman_parameters.controller_manager
 
         self.component_state_monitor = adapters.ComponentStateMonitor(
             node=self,

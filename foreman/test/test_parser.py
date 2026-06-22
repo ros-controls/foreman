@@ -27,9 +27,6 @@ def parsed_scenario(scenario_path):
 class TestParsedScenario:
     """Tests for ParsedScenario structure."""
 
-    def test_controller_manager(self, parsed_scenario):
-        assert parsed_scenario.controller_manager == "b_controlled_box_cm"
-
     def test_hardware_list(self, parsed_scenario):
         assert parsed_scenario.hardware == ["FrankaHardwareInterface", "kassow"]
 

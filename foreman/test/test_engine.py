@@ -17,7 +17,6 @@ def minimal_foreman_config():
     goal = SystemGoal('active_goal',
                       hardware_goals=[Component('hw1', ComponentType.HARDWARE, LifecycleState.ACTIVE)])
     return ParsedScenario(
-        controller_manager="test_cm",
         hardware=["hw1"],
         dependency_rules=[],
         goals={'active_goal': goal},
@@ -136,7 +135,6 @@ def lifecycle_foreman_config():
     goal = SystemGoal('active_goal',
                       lifecycle_node_goals=[Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)])
     return ParsedScenario(
-        controller_manager="test_cm",
         hardware=[],
         dependency_rules=[],
         goals={'active_goal': goal},
@@ -230,7 +228,6 @@ def dependency_config():
                                lifecycle_node_goals=[Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)])
 
     return ParsedScenario(
-        controller_manager="test_cm",
         hardware=[],
         dependency_rules=rules,
         goals={'active': goal_missing_dep, 'active_full': goal_with_dep},
