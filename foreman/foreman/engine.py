@@ -5,6 +5,7 @@ from foreman.parser import ParsedScenario
 from foreman.planner import Planner
 from foreman.types import Component
 from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
 from foreman.types import ErrorSnapshot
 from foreman.types import ForemanError
 from foreman.types import ForemanErrorCategory
@@ -90,6 +91,11 @@ class ForemanEngine:
             self._error_state = error
             self._last_issued_command = None
             self._locked_abort_transition()
+
+    def update_dependency_rules(self, dependency_rules: List[ControllerDependencyRule]):
+        """Hand newly inferred dependency rules to the planner."""
+        with self._state_lock:
+            self._planner.replace_dependency_rules(dependency_rules)
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
         """Calculate the next step toward the goal."""

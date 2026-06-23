@@ -5,17 +5,6 @@ hardware:
 lifecycle_nodes:
   - dummy_lifecycle_node
 
-controllers:
-  joint_state_broadcaster:
-    requires:
-      - [kassow, inactive]
-      - [FrankaHardwareInterface, inactive]
-      - [dummy_lifecycle_node, active]
-  kassow_joint_trajectory_controller:
-    requires: [kassow, active]
-  franka_joint_trajectory_controller:
-    requires: [FrankaHardwareInterface, active]
-
 goal_states:
 
   idle:

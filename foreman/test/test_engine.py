@@ -6,8 +6,10 @@ from foreman.engine import ForemanEngine
 from foreman.parser import ParsedScenario
 from foreman.types import Component
 from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
 from foreman.types import ForemanError
 from foreman.types import ForemanErrorCategory
+from foreman.types import HardwareRequirement
 from foreman.types import LifecycleState
 from foreman.types import SystemGoal
 
@@ -278,3 +280,48 @@ def test_goal_accepted_when_dependency_already_satisfied(dependency_config):
 
     response = engine.request_goal('active')
     assert response.success is True
+
+
+@pytest.fixture
+def inferred_rules_config():
+    """Goal wants 'gripper' active, but the config declares no dependency rules."""
+
+    goal = SystemGoal('run',
+                      controller_goals=[Component('gripper', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
+    return ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        goals={'run': goal},
+        tracked_components={"hw1", "gripper"}
+    )
+
+
+def test_inferred_rules_change_what_the_planner_allows(inferred_rules_config):
+    """Rules fed at runtime must steer planning: same state, different decision."""
+
+    lock = threading.Lock()
+    engine = ForemanEngine(inferred_rules_config, lock)
+
+    # hw1 is only INACTIVE, gripper is INACTIVE, and no rules are known yet.
+    engine.set_system_state([
+        Component('hw1', ComponentType.HARDWARE, LifecycleState.INACTIVE),
+        Component('gripper', ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+    ])
+    engine.request_goal('run')
+
+    # No rules yet, then planner activates gripper
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.component.name == 'gripper'
+    assert cmd.goal_state == LifecycleState.ACTIVE
+
+    # Feed in the inferred rule "gripper needs hw1 ACTIVE" (it is only INACTIVE).
+    engine.update_dependency_rules([
+        ControllerDependencyRule(
+            controller_name='gripper',
+            required_hardware=[HardwareRequirement('hw1', LifecycleState.ACTIVE)]
+        )
+    ])
+
+    # Same observed state, but now gripper is blocked and hw1 isn't in the goal -> no move.
+    assert engine.get_next_transition() is None

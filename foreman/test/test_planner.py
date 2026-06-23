@@ -55,6 +55,21 @@ def apply_command(state: SystemState, cmd: SystemTransitionCommand):
         )
 
 
+def test_replace_dependency_rules_swaps_whole_set(basic_planner):
+    """replace_dependency_rules drops the old rules and installs the new ones."""
+    assert 'franka_jtc' in basic_planner.rules
+
+    basic_planner.replace_dependency_rules([
+        ControllerDependencyRule(
+            controller_name='new_ctrl',
+            required_hardware=[HardwareRequirement('new_hw', LifecycleState.ACTIVE)]
+        )
+    ])
+
+    assert 'franka_jtc' not in basic_planner.rules
+    assert basic_planner.rules['new_ctrl'].required_hardware[0].name == 'new_hw'
+
+
 def test_scenario_1_standard_bring_up(basic_planner):
     state = SystemState(components={
         'franka_hw': Component('franka_hw', ComponentType.HARDWARE, LifecycleState.UNCONFIGURED),
