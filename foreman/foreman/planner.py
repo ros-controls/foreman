@@ -15,8 +15,8 @@ class Planner:
     def __init__(self, dependency_rules: List[ControllerDependencyRule]):
         self.rules = {rule.controller_name: rule for rule in dependency_rules}
 
-    def replace_dependency_rules(self, dependency_rules: List[ControllerDependencyRule]):
-        """Swap the whole rule set at runtime with freshly inferred rules."""
+    def set_dependency_rules(self, dependency_rules: List[ControllerDependencyRule]):
+        """Update the controller dependency rules."""
         self.rules = {rule.controller_name: rule for rule in dependency_rules}
 
     def get_next_transition(

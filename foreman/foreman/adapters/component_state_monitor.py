@@ -68,7 +68,7 @@ class ComponentStateMonitor:
             f"{self._logger_prefix} Subscribed to /{controller_manager_name}/activity"
         )
 
-        # Service clients used to read the CM's controllers and hardware once, to infer dependencies.
+        # Service clients used to read the CM's controllers and hardware to infer dependencies.
         self._client_list_controllers = self._node.create_client(
             ListControllers,
             f'/{controller_manager_name}/list_controllers',
@@ -79,11 +79,6 @@ class ComponentStateMonitor:
             f'/{controller_manager_name}/list_hardware_components',
             callback_group=self._node.callback_group_services
         )
-        # The two responses arrive separately, here None means "not received yet".
-        self._controller_states = None
-        self._hardware_components = None
-        # Inference runs only once, the first time the CM becomes visible.
-        self._dependencies_inferred = False
 
         # --- Lifecycle node monitoring ---
         self._lc_node_get_state_clients: Dict[str, object] = {}
@@ -119,74 +114,72 @@ class ComponentStateMonitor:
 
     @staticmethod
     def infer_dependency_rules(controller_states, hardware_components):
-        """Map each controller to the hardware that owns the interfaces it requires."""
-        interface_owner = {}
+        """Infer each controller's hardware dependencies from its required interfaces.
+
+        A command interface requires its owning hardware ACTIVE; a state interface
+        requires it only INACTIVE. If a controller needs both from one hardware, ACTIVE wins.
+        """
+        owner_of_interface = {}
+        # Build a mapping of interface names to their owning hardware components
         for hardware in hardware_components:
             for interface in list(hardware.command_interfaces) + list(hardware.state_interfaces):
-                interface_owner[interface.name] = hardware.name
+                owner_of_interface[interface.name] = hardware.name
 
         dependency_rules = []
         for controller in controller_states:
-            required_interfaces = (
-                set(controller.required_command_interfaces)
-                | set(controller.required_state_interfaces)
-            )
-            # Resolve each interface to the hardware that owns it.
-            required_hardware_names = {
-                interface_owner[name] for name in required_interfaces if name in interface_owner
-            }
+            # Map required interfaces to hardware components and their required lifecycle states
+            required_hardware_state = {}
+            for interface in controller.required_command_interfaces:
+                hardware_name = owner_of_interface.get(interface)
+                if hardware_name:
+                    required_hardware_state[hardware_name] = LifecycleState.ACTIVE
+
+            for interface in controller.required_state_interfaces:
+                hardware_name = owner_of_interface.get(interface)
+                if hardware_name and hardware_name not in required_hardware_state:
+                    required_hardware_state[hardware_name] = LifecycleState.INACTIVE
+
             dependency_rules.append(ControllerDependencyRule(
                 controller_name=controller.name,
                 required_hardware=[
-                    HardwareRequirement(name=hardware_name, state=LifecycleState.ACTIVE)
-                    for hardware_name in required_hardware_names
+                    HardwareRequirement(name=name, state=state)
+                    for name, state in required_hardware_state.items()
                 ],
             ))
         return dependency_rules
 
-    def infer_dependencies(self):
-        """Ask the controller_manager (once) for its controllers and hardware to infer dependencies."""
-        if self._dependencies_inferred:
-            return
+    def _refresh_dependency_rules(self):
+        """Refresh dependency rules based on latest controller and hardware data. Runs on every activity update."""
         if not (self._client_list_controllers.service_is_ready()
                 and self._client_list_hardware_components.service_is_ready()):
             return
-        self._dependencies_inferred = True
-
         controllers_future = self._client_list_controllers.call_async(ListControllers.Request())
         controllers_future.add_done_callback(self._on_list_controllers_response)
 
+    def _on_list_controllers_response(self, future):
+        """Read the controllers, then request the hardware list (built in the next callback)."""
+        try:
+            controllers = future.result().controller
+        except Exception as error:
+            self._node.get_logger().warning(
+                f"{self._logger_prefix} list_controllers failed: {error}")
+            return
         hardware_future = self._client_list_hardware_components.call_async(
             ListHardwareComponents.Request())
-        hardware_future.add_done_callback(self._on_list_hardware_components_response)
+        # Carry the controllers into the next callback so it has both lists to build the rules.
+        hardware_future.add_done_callback(
+            lambda future: self._on_list_hardware_components_response(future, controllers))
 
-    def _on_list_controllers_response(self, future):
-        # Cache the controllers; rules are built once the hardware response also arrives.
+    def _on_list_hardware_components_response(self, future, controllers):
+        """Hardware components received. Now we build the dependency rules and pass them to the engine."""
         try:
-            self._controller_states = future.result().controller
-            self._build_and_push_dependency_rules()
-        except Exception as e:
+            hardware_components = future.result().component
+        except Exception as error:
             self._node.get_logger().warning(
-                f"{self._logger_prefix} list_controllers failed: {e}")
-
-    def _on_list_hardware_components_response(self, future):
-        # Cache the hardware; rules are built once the controllers response also arrives.
-        try:
-            self._hardware_components = future.result().component
-            self._build_and_push_dependency_rules()
-        except Exception as e:
-            self._node.get_logger().warning(
-                f"{self._logger_prefix} list_hardware_components failed: {e}")
-
-    def _build_and_push_dependency_rules(self):
-        """Once both responses are in, infer the rules and hand them to the engine."""
-        if self._controller_states is None or self._hardware_components is None:
+                f"{self._logger_prefix} list_hardware_components failed: {error}")
             return
-        if not self._controller_states:
-            self._node.get_logger().warning(
-                f"{self._logger_prefix} No controllers reported by the controller_manager.")
-        rules = self.infer_dependency_rules(self._controller_states, self._hardware_components)
-        self._engine.update_dependency_rules(rules)
+        rules = self.infer_dependency_rules(controllers, hardware_components)
+        self._engine.set_dependency_rules(rules)
 
     # TODO: use matched event for this topic as well? That way we know if controller manager dies.
     # Minor. Currently we catch unexpected transitions in the engine (all components go to finalized)
@@ -215,8 +208,8 @@ class ComponentStateMonitor:
                 continue
 
         self._cm_components = components
-        # The CM is visible now, so infer dependencies (here it is guarded to run once).
-        self.infer_dependencies()
+        # Refresh dependency rules based on the latest controller and hardware data.
+        self._refresh_dependency_rules()
         self._push_merged_state()
 
     def _on_lifecycle_publisher_matched(self, name: str, info: QoSSubscriptionMatchedInfo):

@@ -316,7 +316,7 @@ def test_inferred_rules_change_what_the_planner_allows(inferred_rules_config):
     assert cmd.goal_state == LifecycleState.ACTIVE
 
     # Feed in the inferred rule "gripper needs hw1 ACTIVE" (it is only INACTIVE).
-    engine.update_dependency_rules([
+    engine.set_dependency_rules([
         ControllerDependencyRule(
             controller_name='gripper',
             required_hardware=[HardwareRequirement('hw1', LifecycleState.ACTIVE)]

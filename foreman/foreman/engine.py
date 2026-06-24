@@ -92,10 +92,10 @@ class ForemanEngine:
             self._last_issued_command = None
             self._locked_abort_transition()
 
-    def update_dependency_rules(self, dependency_rules: List[ControllerDependencyRule]):
-        """Hand newly inferred dependency rules to the planner."""
+    def set_dependency_rules(self, dependency_rules: List[ControllerDependencyRule]):
+        """Update planner with new dependency rules."""
         with self._state_lock:
-            self._planner.replace_dependency_rules(dependency_rules)
+            self._planner.set_dependency_rules(dependency_rules)
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
         """Calculate the next step toward the goal."""

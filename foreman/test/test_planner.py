@@ -55,11 +55,11 @@ def apply_command(state: SystemState, cmd: SystemTransitionCommand):
         )
 
 
-def test_replace_dependency_rules_swaps_whole_set(basic_planner):
-    """replace_dependency_rules drops the old rules and installs the new ones."""
+def test_set_dependency_rules_swaps_whole_set(basic_planner):
+    """set_dependency_rules drops the old rules and installs the new ones."""
     assert 'franka_jtc' in basic_planner.rules
 
-    basic_planner.replace_dependency_rules([
+    basic_planner.set_dependency_rules([
         ControllerDependencyRule(
             controller_name='new_ctrl',
             required_hardware=[HardwareRequirement('new_hw', LifecycleState.ACTIVE)]

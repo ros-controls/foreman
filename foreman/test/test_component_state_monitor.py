@@ -17,7 +17,7 @@ from foreman.types import LifecycleState
 
 
 def _controller_state(name, required_command=None, required_state=None):
-    """Build a real ControllerState message, like list_controllers returns."""
+    """Build a ControllerState message like list_controllers returns."""
     return ControllerState(
         name=name,
         required_command_interfaces=required_command or [],
@@ -26,7 +26,7 @@ def _controller_state(name, required_command=None, required_state=None):
 
 
 def _hardware_component(name, command=None, state=None):
-    """Build a real HardwareComponentState message, like list_hardware_components returns."""
+    """Build a HardwareComponentState message like list_hardware_components returns."""
     return HardwareComponentState(
         name=name,
         command_interfaces=[HardwareInterface(name=n) for n in (command or [])],
@@ -35,33 +35,55 @@ def _hardware_component(name, command=None, state=None):
 
 
 class TestInferDependencyRules(unittest.TestCase):
-    """Pure inference logic: controller required-interfaces to the owning hardware."""
+    """Test the inference of dependency rules based on controller and hardware states."""
 
-    def test_maps_controller_to_owning_hardware(self):
-        controllers = [_controller_state("ctrl_a", required_command=["joint1/position"])]
+    def test_command_interface_requires_hardware_active(self):
+        # A controller that writes a command interface needs its hardware ACTIVE.
+        controllers = [_controller_state(
+            "forward_position_controller", required_command=["joint1/position"])]
         hardware = [_hardware_component("RRBot", command=["joint1/position"])]
-        rules = {r.controller_name: r for r in
-                 ComponentStateMonitor.infer_dependency_rules(controllers, hardware)}
-        deps = [(h.name, h.state) for h in rules["ctrl_a"].required_hardware]
-        self.assertEqual(deps, [("RRBot", LifecycleState.ACTIVE)])
+        rule = ComponentStateMonitor.infer_dependency_rules(controllers, hardware)[0]
+        self.assertEqual(rule.required_hardware[0].name, "RRBot")
+        self.assertEqual(rule.required_hardware[0].state, LifecycleState.ACTIVE)
 
-    def test_resolves_owner_by_interface_not_by_prefix(self):
-        # here e.g. 'rrbot_joint1/position' is owned by RRBotSystemPositionOnly, not by 'rrbot_joint1'.
+    def test_state_interface_requires_hardware_inactive(self):
+        # A broadcaster only reads a state interface, so the hardware need only be INACTIVE.
+        controllers = [_controller_state("joint_state_broadcaster",
+                                         required_state=["joint1/position"])]
+        hardware = [_hardware_component("RRBot", state=["joint1/position"])]
+        rule = ComponentStateMonitor.infer_dependency_rules(controllers, hardware)[0]
+        self.assertEqual(rule.required_hardware[0].name, "RRBot")
+        self.assertEqual(rule.required_hardware[0].state, LifecycleState.INACTIVE)
+
+    def test_needing_command_and_state_requires_active(self):
+        # If a controller needs both kinds from one hardware, the strict ACTIVE requirement wins.
+        controllers = [_controller_state("mixed",
+                                         required_command=["joint1/position"],
+                                         required_state=["joint1/velocity"])]
+        hardware = [_hardware_component("RRBot",
+                                        command=["joint1/position"],
+                                        state=["joint1/velocity"])]
+        rule = ComponentStateMonitor.infer_dependency_rules(controllers, hardware)[0]
+        self.assertEqual(rule.required_hardware[0].state, LifecycleState.ACTIVE)
+
+    def test_owner_resolved_by_interface_name_not_prefix(self):
+        # rrbot_joint1/position is owned by whichever hardware exports it, not by rrbot_joint1.
         controllers = [_controller_state("pos_ctrl", required_command=["rrbot_joint1/position"])]
         hardware = [_hardware_component("RRBotSystemPositionOnly",
                                         command=["rrbot_joint1/position"])]
-        rules = ComponentStateMonitor.infer_dependency_rules(controllers, hardware)
-        self.assertEqual([h.name for h in rules[0].required_hardware], ["RRBotSystemPositionOnly"])
+        rule = ComponentStateMonitor.infer_dependency_rules(controllers, hardware)[0]
+        self.assertEqual([h.name for h in rule.required_hardware], ["RRBotSystemPositionOnly"])
 
-    def test_controller_with_no_owning_hardware_has_no_dependency(self):
+    def test_interface_with_no_owning_hardware_gives_no_dependency(self):
+        # An interface no hardware exports (e.g. hardware not up yet) yields no dependency.
         controllers = [_controller_state("lonely", required_command=["ghost/iface"])]
         hardware = [_hardware_component("RRBot", command=["joint1/position"])]
-        rules = ComponentStateMonitor.infer_dependency_rules(controllers, hardware)
-        self.assertEqual(rules[0].required_hardware, [])
+        rule = ComponentStateMonitor.infer_dependency_rules(controllers, hardware)[0]
+        self.assertEqual(rule.required_hardware, [])
 
 
 class TestDependencyInferenceWiring(unittest.TestCase):
-    """CM service round-trip wiring, with a real node and a mocked engine."""
+    """The service round-trip: read the CM on each activity update and set the rules on the engine."""
 
     @classmethod
     def setUpClass(cls):
@@ -73,57 +95,20 @@ class TestDependencyInferenceWiring(unittest.TestCase):
 
     def setUp(self):
         self.node = rclpy.create_node("test_component_state_monitor")
-        # the adapter reads these; the real ForemanNode sets them, a bare node may not
+        # ComponentStateMonitor expects these callback groups on its node; a real ForemanNode
+        # creates them, so we add them to this plain test node.
         self.node.callback_group_services = MutuallyExclusiveCallbackGroup()
         self.node.callback_group_subscriber = ReentrantCallbackGroup()
         self.addCleanup(self.node.destroy_node)
         self.engine = Mock()
         self.monitor = ComponentStateMonitor(self.node, self.engine, "test_controller_manager", [])
 
-    def test_infer_skips_when_services_not_ready(self):
-        # No CM running, clients not ready then we must not call the services
-        with mock.patch.object(self.monitor._client_list_controllers, "call_async") as ctrl_call, \
-                mock.patch.object(self.monitor._client_list_hardware_components, "call_async") as hw_call:
-            self.monitor.infer_dependencies()
-        ctrl_call.assert_not_called()
-        hw_call.assert_not_called()
-        self.assertFalse(self.monitor._dependencies_inferred)
-
-    def test_infer_runs_only_once(self):
-        self.monitor._dependencies_inferred = True
-        with mock.patch.object(self.monitor._client_list_controllers, "call_async") as ctrl_call:
-            self.monitor.infer_dependencies()
-        ctrl_call.assert_not_called()
-
-    def test_rules_not_pushed_until_both_responses_arrive(self):
-        self.monitor._controller_states = []      # controllers arrived
-        self.monitor._hardware_components = None   # hardware not yet received
-        self.monitor._build_and_push_dependency_rules()
-        self.engine.update_dependency_rules.assert_not_called()
-
-    def test_inferred_rules_are_pushed_to_engine(self):
-        self.monitor._controller_states = [
-            _controller_state("ctrl_a", required_command=["joint1/position"])]
-        self.monitor._hardware_components = [
-            _hardware_component("RRBot", command=["joint1/position"])]
-        self.monitor._build_and_push_dependency_rules()
-        self.engine.update_dependency_rules.assert_called_once()
-        rules = self.engine.update_dependency_rules.call_args[0][0]
-        self.assertEqual(rules[0].controller_name, "ctrl_a")
-        self.assertEqual(rules[0].required_hardware[0].name, "RRBot")
-        self.assertEqual(rules[0].required_hardware[0].state, LifecycleState.ACTIVE)
-
-    def test_full_flow_queries_cm_and_pushes_rules(self):
+    def _infer_with(self, controllers, hardware):
+        # Mock the controller manager services to return the given controllers and hardware, then refresh rules.
         controllers_future = Future()
-        controllers_resp = ListControllers.Response()
-        controllers_resp.controller = [
-            _controller_state("ctrl_a", required_command=["joint1/position"])]
-        controllers_future.set_result(controllers_resp)
-
+        controllers_future.set_result(ListControllers.Response(controller=controllers))
         hardware_future = Future()
-        hardware_resp = ListHardwareComponents.Response()
-        hardware_resp.component = [_hardware_component("RRBot", command=["joint1/position"])]
-        hardware_future.set_result(hardware_resp)
+        hardware_future.set_result(ListHardwareComponents.Response(component=hardware))
 
         with mock.patch.object(self.monitor._client_list_controllers,
                                "service_is_ready", return_value=True), \
@@ -133,13 +118,40 @@ class TestDependencyInferenceWiring(unittest.TestCase):
                               "call_async", return_value=controllers_future), \
             mock.patch.object(self.monitor._client_list_hardware_components,
                               "call_async", return_value=hardware_future):
-            self.monitor.infer_dependencies()
+            self.monitor._refresh_dependency_rules()
 
-        self.assertTrue(self.monitor._dependencies_inferred)
-        self.engine.update_dependency_rules.assert_called_once()
-        rules = self.engine.update_dependency_rules.call_args[0][0]
-        self.assertEqual(rules[0].controller_name, "ctrl_a")
-        self.assertEqual(rules[0].required_hardware[0].name, "RRBot")
+    def test_refresh_skips_when_services_not_ready(self):
+        # No controller_manager is up, so its clients are not ready, we do nothing.
+        with mock.patch.object(self.monitor._client_list_controllers, "call_async") as list_call:
+            self.monitor._refresh_dependency_rules()
+        list_call.assert_not_called()
+        self.engine.set_dependency_rules.assert_not_called()
+
+    def test_refresh_reads_cm_and_sets_rules_on_engine(self):
+        self._infer_with(
+            controllers=[_controller_state("forward_position_controller",
+                                           required_command=["joint1/position"])],
+            hardware=[_hardware_component("RRBot", command=["joint1/position"])])
+
+        self.engine.set_dependency_rules.assert_called_once()
+        rule = self.engine.set_dependency_rules.call_args[0][0][0]
+        self.assertEqual(rule.controller_name, "forward_position_controller")
+        self.assertEqual(rule.required_hardware[0].name, "RRBot")
+        self.assertEqual(rule.required_hardware[0].state, LifecycleState.ACTIVE)
+
+    def test_refresh_runs_again_on_next_activity(self):
+        # There is no run-once guard, each activity update re-infers and sets the dependency rules again.
+        controllers = [_controller_state("forward_position_controller",
+                                         required_command=["joint1/position"])]
+        hardware = [_hardware_component("RRBot", command=["joint1/position"])]
+        self._infer_with(controllers=controllers, hardware=hardware)
+        self._infer_with(controllers=controllers, hardware=hardware)
+        self.assertEqual(self.engine.set_dependency_rules.call_count, 2)
+
+    def test_no_controllers_yields_empty_rules(self):
+        # No controllers yet, empty rule set.
+        self._infer_with(controllers=[], hardware=[])
+        self.engine.set_dependency_rules.assert_called_once_with([])
 
 
 if __name__ == '__main__':
