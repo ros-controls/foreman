@@ -5,6 +5,7 @@ from foreman.parser import ParsedScenario
 from foreman.planner import Planner
 from foreman.types import Component
 from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
 from foreman.types import ErrorSnapshot
 from foreman.types import ForemanError
 from foreman.types import ForemanErrorCategory
@@ -90,6 +91,10 @@ class ForemanEngine:
             self._error_state = error
             self._last_issued_command = None
             self._locked_abort_transition()
+
+    def set_dependency_provider(self, dependency_provider):
+        """Set the source of dependency rules for the planner."""
+        self._planner.set_dependency_provider(dependency_provider)
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
         """Calculate the next step toward the goal."""
@@ -251,8 +256,9 @@ class ForemanEngine:
             goal_infrastructure_states[comp.name] = comp.lifecycle_state
 
         errors = []
+        current_dependency_rules = self._planner.get_current_rules()
         for ctrl_goal in goal.controller_goals:
-            rule = self._planner.rules.get(ctrl_goal.name)
+            rule = current_dependency_rules.get(ctrl_goal.name)
             if not rule:
                 continue
 
