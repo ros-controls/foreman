@@ -92,10 +92,9 @@ class ForemanEngine:
             self._last_issued_command = None
             self._locked_abort_transition()
 
-    def set_dependency_rules(self, dependency_rules: List[ControllerDependencyRule]):
-        """Update planner with new dependency rules."""
-        with self._state_lock:
-            self._planner.set_dependency_rules(dependency_rules)
+    def set_dependency_provider(self, dependency_provider):
+        """Set the source of dependency rules for the planner."""
+        self._planner.set_dependency_provider(dependency_provider)
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
         """Calculate the next step toward the goal."""
@@ -257,8 +256,9 @@ class ForemanEngine:
             goal_infrastructure_states[comp.name] = comp.lifecycle_state
 
         errors = []
+        current_dependency_rules = self._planner.get_current_rules()
         for ctrl_goal in goal.controller_goals:
-            rule = self._planner.rules.get(ctrl_goal.name)
+            rule = current_dependency_rules.get(ctrl_goal.name)
             if not rule:
                 continue
 

@@ -68,16 +68,16 @@ class ComponentStateMonitor:
             f"{self._logger_prefix} Subscribed to /{controller_manager_name}/activity"
         )
 
-        # Service clients used to read the CM's controllers and hardware to infer dependencies.
+        # Service clients used to query controller_manager when building dependency rules.
         self._client_list_controllers = self._node.create_client(
             ListControllers,
             f'/{controller_manager_name}/list_controllers',
-            callback_group=self._node.callback_group_services
+            callback_group=self._node.callback_group_subscriber
         )
         self._client_list_hardware_components = self._node.create_client(
             ListHardwareComponents,
             f'/{controller_manager_name}/list_hardware_components',
-            callback_group=self._node.callback_group_services
+            callback_group=self._node.callback_group_subscriber
         )
 
         # --- Lifecycle node monitoring ---
@@ -148,38 +148,19 @@ class ComponentStateMonitor:
             ))
         return dependency_rules
 
-    def _refresh_dependency_rules(self):
-        """Refresh dependency rules based on latest controller and hardware data. Runs on every activity update."""
+    def get_dependency_rules(self):
+        """
+        Query the controller_manager and build the current dependency rules.
+
+        Returns [] until the controller_manager services are up.
+        """
         if not (self._client_list_controllers.service_is_ready()
                 and self._client_list_hardware_components.service_is_ready()):
-            return
-        controllers_future = self._client_list_controllers.call_async(ListControllers.Request())
-        controllers_future.add_done_callback(self._on_list_controllers_response)
-
-    def _on_list_controllers_response(self, future):
-        """Read the controllers, then request the hardware list (built in the next callback)."""
-        try:
-            controllers = future.result().controller
-        except Exception as error:
-            self._node.get_logger().warning(
-                f"{self._logger_prefix} list_controllers failed: {error}")
-            return
-        hardware_future = self._client_list_hardware_components.call_async(
-            ListHardwareComponents.Request())
-        # Carry the controllers into the next callback so it has both lists to build the rules.
-        hardware_future.add_done_callback(
-            lambda future: self._on_list_hardware_components_response(future, controllers))
-
-    def _on_list_hardware_components_response(self, future, controllers):
-        """Hardware components received. Now we build the dependency rules and pass them to the engine."""
-        try:
-            hardware_components = future.result().component
-        except Exception as error:
-            self._node.get_logger().warning(
-                f"{self._logger_prefix} list_hardware_components failed: {error}")
-            return
-        rules = self.infer_dependency_rules(controllers, hardware_components)
-        self._engine.set_dependency_rules(rules)
+            return []
+        controllers = self._client_list_controllers.call(ListControllers.Request()).controller
+        hardware_components = self._client_list_hardware_components.call(
+            ListHardwareComponents.Request()).component
+        return self.infer_dependency_rules(controllers, hardware_components)
 
     # TODO: use matched event for this topic as well? That way we know if controller manager dies.
     # Minor. Currently we catch unexpected transitions in the engine (all components go to finalized)
@@ -208,8 +189,6 @@ class ComponentStateMonitor:
                 continue
 
         self._cm_components = components
-        # Refresh dependency rules based on the latest controller and hardware data.
-        self._refresh_dependency_rules()
         self._push_merged_state()
 
     def _on_lifecycle_publisher_matched(self, name: str, info: QoSSubscriptionMatchedInfo):

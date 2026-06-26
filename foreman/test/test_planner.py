@@ -55,19 +55,20 @@ def apply_command(state: SystemState, cmd: SystemTransitionCommand):
         )
 
 
-def test_set_dependency_rules_swaps_whole_set(basic_planner):
-    """set_dependency_rules drops the old rules and installs the new ones."""
-    assert 'franka_jtc' in basic_planner.rules
+def test_planner_pulls_rules_from_provider(basic_planner):
+    """Verify the planner uses rules returned by its provider."""
+    class _FakeProvider:
+        def get_dependency_rules(self):
+            return [ControllerDependencyRule(
+                controller_name='new_ctrl',
+                required_hardware=[HardwareRequirement('new_hw', LifecycleState.ACTIVE)])]
 
-    basic_planner.set_dependency_rules([
-        ControllerDependencyRule(
-            controller_name='new_ctrl',
-            required_hardware=[HardwareRequirement('new_hw', LifecycleState.ACTIVE)]
-        )
-    ])
+    basic_planner.set_dependency_provider(_FakeProvider())
+    rules = basic_planner.get_current_rules()
 
-    assert 'franka_jtc' not in basic_planner.rules
-    assert basic_planner.rules['new_ctrl'].required_hardware[0].name == 'new_hw'
+    # Rules now come from the provider instead of the initial configuration.
+    assert 'franka_jtc' not in rules
+    assert rules['new_ctrl'].required_hardware[0].name == 'new_hw'
 
 
 def test_scenario_1_standard_bring_up(basic_planner):

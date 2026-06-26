@@ -296,32 +296,40 @@ def inferred_rules_config():
     )
 
 
-def test_inferred_rules_change_what_the_planner_allows(inferred_rules_config):
-    """Rules fed at runtime must steer planning: same state, different decision."""
+class _FakeDependencyProvider:
+    """Simple dependency rule provider for planner tests."""
+
+    def __init__(self):
+        self.rules = []
+
+    def get_dependency_rules(self):
+        return self.rules
+
+
+def test_pulled_rules_change_what_the_planner_allows(inferred_rules_config):
+    """Planner decisions change when the provider returns different rules."""
 
     lock = threading.Lock()
     engine = ForemanEngine(inferred_rules_config, lock)
+    provider = _FakeDependencyProvider()
+    engine.set_dependency_provider(provider)
 
-    # hw1 is only INACTIVE, gripper is INACTIVE, and no rules are known yet.
+    # hw1 is only INACTIVE, gripper is INACTIVE, and the source has no rules yet.
     engine.set_system_state([
         Component('hw1', ComponentType.HARDWARE, LifecycleState.INACTIVE),
         Component('gripper', ComponentType.CONTROLLER, LifecycleState.INACTIVE),
     ])
     engine.request_goal('run')
 
-    # No rules yet, then planner activates gripper
     cmd = engine.get_next_transition()
     assert cmd is not None
     assert cmd.component.name == 'gripper'
     assert cmd.goal_state == LifecycleState.ACTIVE
 
-    # Feed in the inferred rule "gripper needs hw1 ACTIVE" (it is only INACTIVE).
-    engine.set_dependency_rules([
-        ControllerDependencyRule(
-            controller_name='gripper',
-            required_hardware=[HardwareRequirement('hw1', LifecycleState.ACTIVE)]
-        )
-    ])
+    # Update the provider to require hw1 ACTIVE before gripper activation.
+    provider.rules = [ControllerDependencyRule(
+        controller_name='gripper',
+        required_hardware=[HardwareRequirement('hw1', LifecycleState.ACTIVE)])]
 
-    # Same observed state, but now gripper is blocked and hw1 isn't in the goal -> no move.
+    # The newly pulled rule blocks activation because hw1 is not ACTIVE.
     assert engine.get_next_transition() is None
