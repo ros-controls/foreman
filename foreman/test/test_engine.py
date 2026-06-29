@@ -333,3 +333,26 @@ def test_pulled_rules_change_what_the_planner_allows(inferred_rules_config):
 
     # The newly pulled rule blocks activation because hw1 is not ACTIVE.
     assert engine.get_next_transition() is None
+
+
+def test_controller_with_no_dependency_rule_is_satisfiable(inferred_rules_config):
+    """A controller named in a goal but absent from the pulled rules has no
+    requirements, so the goal is accepted instead of crashing on a missing rule."""
+    lock = threading.Lock()
+    engine = ForemanEngine(inferred_rules_config, lock)
+
+    provider = _FakeDependencyProvider()
+    # The provider knows a rule, but for a DIFFERENT controller, so 'gripper' has no rule.
+    provider.rules = [ControllerDependencyRule(
+        controller_name='new_controller',
+        required_hardware=[HardwareRequirement('hw1', LifecycleState.ACTIVE)])]
+    engine.set_dependency_provider(provider)
+
+    engine.set_system_state([
+        Component('hw1', ComponentType.HARDWARE, LifecycleState.INACTIVE),
+        Component('gripper', ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+    ])
+
+    # 'gripper' has no rule, so no hardware requirements and goal must be accepted, not crash.
+    response = engine.request_goal('run')
+    assert response.success is True
