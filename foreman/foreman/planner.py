@@ -3,6 +3,7 @@ from typing import List, Optional
 from foreman.types import Component
 from foreman.types import ComponentType
 from foreman.types import ControllerDependencyRule
+from foreman.types import DependencyProvider
 from foreman.types import LifecycleState
 from foreman.types import SystemGoal
 from foreman.types import SystemState
@@ -12,8 +13,21 @@ from foreman.types import SystemTransitionCommand
 class Planner:
     """Plan the next single step towards the lifecycle state goal of the system."""
 
-    def __init__(self, dependency_rules: List[ControllerDependencyRule]):
-        self.rules = {rule.controller_name: rule for rule in dependency_rules}
+    def __init__(self, dependency_rules: List[ControllerDependencyRule] = None,
+                 dependency_provider: Optional[DependencyProvider] = None):
+        self._dependency_provider = dependency_provider
+        self.rules = {rule.controller_name: rule for rule in (dependency_rules or [])}
+
+    def set_dependency_provider(self, dependency_provider: DependencyProvider):
+        """Set a provider for dependency rules, which can be queried at runtime."""
+        self._dependency_provider = dependency_provider
+
+    def get_current_rules(self):
+        """Return the current dependency rules keyed by controller name."""
+        if self._dependency_provider is not None:
+            self.rules = {rule.controller_name: rule
+                          for rule in self._dependency_provider.get_dependency_rules()}
+        return self.rules
 
     def get_next_transition(
         self, current_state: SystemState, goal: SystemGoal
@@ -23,6 +37,9 @@ class Planner:
 
         Priority: C deactivate > HW Down > HW Up > C cleanup > C config > C activate.
         """
+        # Refresh dependency rules from the provider before computing the next transition.
+        self.get_current_rules()
+
         cmds_hw_step_up = []
         cmds_hw_step_down = []
         cmds_ctrl_config = []

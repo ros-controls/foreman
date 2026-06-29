@@ -1,6 +1,8 @@
 from typing import Dict, List
 
 from controller_manager_msgs.msg import ControllerManagerActivity
+from controller_manager_msgs.srv import ListControllers
+from controller_manager_msgs.srv import ListHardwareComponents
 from lifecycle_msgs.msg import TransitionEvent
 from lifecycle_msgs.srv import GetState
 from rclpy.event_handler import QoSSubscriptionMatchedInfo
@@ -14,6 +16,8 @@ from rclpy.qos import ReliabilityPolicy
 from foreman.engine import ForemanEngine
 from foreman.types import Component
 from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
+from foreman.types import HardwareRequirement
 from foreman.types import LifecycleState
 
 
@@ -64,6 +68,18 @@ class ComponentStateMonitor:
             f"{self._logger_prefix} Subscribed to /{controller_manager_name}/activity"
         )
 
+        # Service clients used to query controller_manager when building dependency rules.
+        self._client_list_controllers = self._node.create_client(
+            ListControllers,
+            f'/{controller_manager_name}/list_controllers',
+            callback_group=self._node.callback_group_subscriber
+        )
+        self._client_list_hardware_components = self._node.create_client(
+            ListHardwareComponents,
+            f'/{controller_manager_name}/list_hardware_components',
+            callback_group=self._node.callback_group_subscriber
+        )
+
         # --- Lifecycle node monitoring ---
         self._lc_node_get_state_clients: Dict[str, object] = {}
 
@@ -95,6 +111,56 @@ class ComponentStateMonitor:
             self._node.get_logger().info(
                 f"{self._logger_prefix} Monitoring lifecycle nodes: {lifecycle_nodes}"
             )
+
+    @staticmethod
+    def infer_dependency_rules(controller_states, hardware_components):
+        """Infer each controller's hardware dependencies from its required interfaces.
+
+        A command interface requires its owning hardware ACTIVE; a state interface
+        requires it only INACTIVE. If a controller needs both from one hardware, ACTIVE wins.
+        """
+        owner_of_interface = {}
+        # Build a mapping of interface names to their owning hardware components
+        for hardware in hardware_components:
+            for interface in list(hardware.command_interfaces) + list(hardware.state_interfaces):
+                owner_of_interface[interface.name] = hardware.name
+
+        dependency_rules = []
+        for controller in controller_states:
+            # Map required interfaces to hardware components and their required lifecycle states
+            required_hardware_state = {}
+            for interface in controller.required_command_interfaces:
+                hardware_name = owner_of_interface.get(interface)
+                if hardware_name:
+                    required_hardware_state[hardware_name] = LifecycleState.ACTIVE
+
+            for interface in controller.required_state_interfaces:
+                hardware_name = owner_of_interface.get(interface)
+                if hardware_name and hardware_name not in required_hardware_state:
+                    required_hardware_state[hardware_name] = LifecycleState.INACTIVE
+
+            dependency_rules.append(ControllerDependencyRule(
+                controller_name=controller.name,
+                required_hardware=[
+                    HardwareRequirement(name=name, state=state)
+                    for name, state in required_hardware_state.items()
+                ],
+            ))
+        return dependency_rules
+
+    def get_dependency_rules(self):
+        """
+        Query the controller_manager and build the current dependency rules.
+
+        Returns [] until the controller_manager services are up.
+        """
+        if not (self._client_list_controllers.service_is_ready()
+                and self._client_list_hardware_components.service_is_ready()):
+            return []
+        controllers = self._client_list_controllers.call(ListControllers.Request()).controller
+        hardware_components = self._client_list_hardware_components.call(
+            ListHardwareComponents.Request()).component
+        return self.infer_dependency_rules(controllers, hardware_components)
 
     # TODO: use matched event for this topic as well? That way we know if controller manager dies.
     # Minor. Currently we catch unexpected transitions in the engine (all components go to finalized)
