@@ -6,6 +6,7 @@ from foreman.planner import Planner
 from foreman.types import Component
 from foreman.types import ComponentType
 from foreman.types import ControllerDependencyRule
+from foreman.types import DependencyProvider
 from foreman.types import ErrorSnapshot
 from foreman.types import ForemanError
 from foreman.types import ForemanErrorCategory
@@ -92,7 +93,7 @@ class ForemanEngine:
             self._last_issued_command = None
             self._locked_abort_transition()
 
-    def set_dependency_provider(self, dependency_provider):
+    def set_dependency_provider(self, dependency_provider: DependencyProvider):
         """Set the source of dependency rules for the planner."""
         self._planner.set_dependency_provider(dependency_provider)
 

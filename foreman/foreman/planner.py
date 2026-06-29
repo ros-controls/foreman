@@ -3,6 +3,7 @@ from typing import List, Optional
 from foreman.types import Component
 from foreman.types import ComponentType
 from foreman.types import ControllerDependencyRule
+from foreman.types import DependencyProvider
 from foreman.types import LifecycleState
 from foreman.types import SystemGoal
 from foreman.types import SystemState
@@ -13,11 +14,11 @@ class Planner:
     """Plan the next single step towards the lifecycle state goal of the system."""
 
     def __init__(self, dependency_rules: List[ControllerDependencyRule] = None,
-                 dependency_provider=None):
+                 dependency_provider: Optional[DependencyProvider] = None):
         self._dependency_provider = dependency_provider
         self.rules = {rule.controller_name: rule for rule in (dependency_rules or [])}
 
-    def set_dependency_provider(self, dependency_provider):
+    def set_dependency_provider(self, dependency_provider: DependencyProvider):
         """Set a provider for dependency rules, which can be queried at runtime."""
         self._dependency_provider = dependency_provider
 

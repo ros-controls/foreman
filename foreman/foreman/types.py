@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Protocol
 
 from lifecycle_msgs.msg import State
 
@@ -134,6 +134,12 @@ class ControllerDependencyRule:
 
     controller_name: str
     required_hardware: List[HardwareRequirement]
+
+
+class DependencyProvider(Protocol):
+    """A source of controller dependency rules the planner can pull from."""
+
+    def get_dependency_rules(self) -> List['ControllerDependencyRule']: ...
 
 
 @dataclass
