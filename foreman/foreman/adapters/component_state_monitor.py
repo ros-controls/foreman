@@ -1,3 +1,4 @@
+import threading
 from typing import Dict, List
 
 from controller_manager_msgs.msg import ControllerManagerActivity
@@ -157,9 +158,9 @@ class ComponentStateMonitor:
         if not (self._client_list_controllers.service_is_ready()
                 and self._client_list_hardware_components.service_is_ready()):
             return []
-        controllers = self._client_list_controllers.call(ListControllers.Request()).controller
         hardware_components = self._client_list_hardware_components.call(
             ListHardwareComponents.Request()).component
+        controllers = self._client_list_controllers.call(ListControllers.Request()).controller
         return self.infer_dependency_rules(controllers, hardware_components)
 
     # TODO: use matched event for this topic as well? That way we know if controller manager dies.
