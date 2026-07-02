@@ -81,6 +81,12 @@ class ComponentStateMonitor:
             callback_group=self._node.callback_group_subscriber
         )
 
+        # Latest controller_manager observations used to infer dependency rules.
+        # Updated asynchronously from controller_manager callbacks.
+        self._dependency_lock = threading.Lock()
+        self._latest_controllers = []
+        self._latest_hardware_components = []
+
         # --- Lifecycle node monitoring ---
         self._lc_node_get_state_clients: Dict[str, object] = {}
 
@@ -151,17 +157,49 @@ class ComponentStateMonitor:
 
     def get_dependency_rules(self):
         """
-        Query the controller_manager and build the current dependency rules.
+        Infer dependency rules from the latest controller_manager observations.
 
-        Returns [] until the controller_manager services are up.
+        The observations are refreshed asynchronously, so this method never blocks.
         """
-        if not (self._client_list_controllers.service_is_ready()
-                and self._client_list_hardware_components.service_is_ready()):
-            return []
-        hardware_components = self._client_list_hardware_components.call(
-            ListHardwareComponents.Request()).component
-        controllers = self._client_list_controllers.call(ListControllers.Request()).controller
-        return self.infer_dependency_rules(controllers, hardware_components)
+        with self._dependency_lock:
+            return self.infer_dependency_rules(
+                self._latest_controllers, self._latest_hardware_components)
+
+    def _refresh_dependency_rules(self):
+        """Refresh dependency observations asynchronously.
+
+        Query hardware first, then controllers, before rebuilding dependencies.
+        """
+        if not (self._client_list_hardware_components.service_is_ready()
+                and self._client_list_controllers.service_is_ready()):
+            return
+        future = self._client_list_hardware_components.call_async(
+            ListHardwareComponents.Request())
+        future.add_done_callback(self._on_hardware_components_response)
+
+    def _on_hardware_components_response(self, future):
+        """Store the latest hardware observations and request controllers."""
+        try:
+            hardware = future.result().component
+        except Exception as e:
+            self._node.get_logger().warning(
+                f"{self._logger_prefix} Failed to list hardware components: {e}")
+            return
+        with self._dependency_lock:
+            self._latest_hardware_components = hardware
+        ctrl_future = self._client_list_controllers.call_async(ListControllers.Request())
+        ctrl_future.add_done_callback(self._on_controllers_response)
+
+    def _on_controllers_response(self, future):
+        """Store the latest controller observations."""
+        try:
+            controllers = future.result().controller
+        except Exception as e:
+            self._node.get_logger().warning(
+                f"{self._logger_prefix} Failed to list controllers: {e}")
+            return
+        with self._dependency_lock:
+            self._latest_controllers = controllers
 
     # TODO: use matched event for this topic as well? That way we know if controller manager dies.
     # Minor. Currently we catch unexpected transitions in the engine (all components go to finalized)
@@ -191,6 +229,8 @@ class ComponentStateMonitor:
 
         self._cm_components = components
         self._push_merged_state()
+        # Refresh dependency observations after receiving a new activity update.
+        self._refresh_dependency_rules()
 
     def _on_lifecycle_publisher_matched(self, name: str, info: QoSSubscriptionMatchedInfo):
         """DDS matched event: lifecycle node's transition_event publisher appeared or disappeared."""
