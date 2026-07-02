@@ -82,7 +82,7 @@ class TestInferDependencyRules(unittest.TestCase):
 
 
 class TestDependencyRulesQuery(unittest.TestCase):
-    """Tests querying dependency rules from the controller_manager."""
+    """Tests dependency rules are inferred from the latest stored observations."""
 
     @classmethod
     def setUpClass(cls):
@@ -94,35 +94,24 @@ class TestDependencyRulesQuery(unittest.TestCase):
 
     def setUp(self):
         self.node = rclpy.create_node("test_component_state_monitor")
-        # ComponentStateMonitor expects these callback groups on its node; a real ForemanNode
-        # creates them, so we add them to this plain test node.
         self.node.callback_group_services = MutuallyExclusiveCallbackGroup()
         self.node.callback_group_subscriber = ReentrantCallbackGroup()
         self.addCleanup(self.node.destroy_node)
         self.engine = Mock()
         self.monitor = ComponentStateMonitor(self.node, self.engine, "test_controller_manager", [])
 
-    def test_returns_empty_when_services_not_ready(self):
-        # When controller_manager services are unavailable, do not attempt any queries.
-        with mock.patch.object(self.monitor._client_list_controllers, "call") as controllers_call:
-            self.assertEqual(self.monitor.get_dependency_rules(), [])
-        controllers_call.assert_not_called()
+    def test_no_observations_yields_no_rules(self):
+        # Before any async refresh has stored observations, there are no rules.
+        self.assertEqual(self.monitor.get_dependency_rules(), [])
 
-    def test_queries_cm_and_builds_rules(self):
-        controllers_response = ListControllers.Response(controller=[
-            _controller_state("forward_position_controller", required_command=["joint1/position"])])
-        hardware_response = ListHardwareComponents.Response(component=[
-            _hardware_component("RRBot", command=["joint1/position"])])
+    def test_rules_inferred_from_latest_observations(self):
+        # Simulate the async refresh callbacks having stored the latest observations.
+        self.monitor._latest_hardware_components = [
+            _hardware_component("RRBot", command=["joint1/position"])]
+        self.monitor._latest_controllers = [
+            _controller_state("forward_position_controller", required_command=["joint1/position"])]
 
-        with mock.patch.object(self.monitor._client_list_controllers,
-                               "service_is_ready", return_value=True), \
-            mock.patch.object(self.monitor._client_list_hardware_components,
-                              "service_is_ready", return_value=True), \
-            mock.patch.object(self.monitor._client_list_controllers,
-                              "call", return_value=controllers_response), \
-            mock.patch.object(self.monitor._client_list_hardware_components,
-                              "call", return_value=hardware_response):
-            rules = self.monitor.get_dependency_rules()
+        rules = self.monitor.get_dependency_rules()
 
         self.assertEqual(len(rules), 1)
         self.assertEqual(rules[0].controller_name, "forward_position_controller")
