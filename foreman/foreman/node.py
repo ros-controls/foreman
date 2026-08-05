@@ -73,17 +73,6 @@ class ForemanNode(Node):
         # TODO: Add pretty print of current state and read config?
         self.get_logger().info("Foreman Node initialized.")
 
-        # If available, start the datalayer adapter
-        datalayer_available = True if adapters.DatalayerAdapter else None
-        if datalayer_available:
-            self.datalayer_adapter = adapters.DatalayerAdapter(
-                ros_logger=self.get_logger(), engine=self.foreman_engine)
-            self.get_logger().info("Datalayer adapter initialized.")
-            datalayer_available = self.datalayer_adapter.start()
-
-        if not datalayer_available:
-            self.get_logger().info("Datalayer adapter not available.")
-            self.datalayer_adapter = None
         self.counter = 0
 
     def callback_main_loop(self):
@@ -153,12 +142,6 @@ class ForemanNode(Node):
     def destroy_node(self):
         """Safely stop adapters when shutting down node."""
         self.get_logger().info("Shutting down adapters...")
-
-        if self.datalayer_adapter:
-            try:
-                self.datalayer_adapter.stop()
-            except Exception as e:
-                self.get_logger().error(f"Failed to stop datalayer adapter: {e}")
 
         super().destroy_node()
 
