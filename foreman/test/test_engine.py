@@ -6,8 +6,10 @@ from foreman.engine import ForemanEngine
 from foreman.parser import ParsedScenario
 from foreman.types import Component
 from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
 from foreman.types import ForemanError
 from foreman.types import ForemanErrorCategory
+from foreman.types import HardwareRequirement
 from foreman.types import LifecycleState
 from foreman.types import SystemGoal
 
@@ -277,4 +279,80 @@ def test_goal_accepted_when_dependency_already_satisfied(dependency_config):
     ])
 
     response = engine.request_goal('active')
+    assert response.success is True
+
+
+@pytest.fixture
+def inferred_rules_config():
+    """Goal wants 'gripper' active, but the config declares no dependency rules."""
+
+    goal = SystemGoal('run',
+                      controller_goals=[Component('gripper', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
+    return ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        goals={'run': goal},
+        tracked_components={"hw1", "gripper"}
+    )
+
+
+class _FakeDependencyProvider:
+    """Simple dependency rule provider for planner tests."""
+
+    def __init__(self):
+        self.rules = []
+
+    def get_dependency_rules(self):
+        return self.rules
+
+
+def test_pulled_rules_change_what_the_planner_allows(inferred_rules_config):
+    """Planner decisions change when the provider returns different rules."""
+
+    lock = threading.Lock()
+    engine = ForemanEngine(inferred_rules_config, lock)
+    provider = _FakeDependencyProvider()
+    engine.set_dependency_provider(provider)
+
+    # hw1 is only INACTIVE, gripper is INACTIVE, and the source has no rules yet.
+    engine.set_system_state([
+        Component('hw1', ComponentType.HARDWARE, LifecycleState.INACTIVE),
+        Component('gripper', ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+    ])
+    engine.request_goal('run')
+
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.component.name == 'gripper'
+    assert cmd.goal_state == LifecycleState.ACTIVE
+
+    # Update the provider to require hw1 ACTIVE before gripper activation.
+    provider.rules = [ControllerDependencyRule(
+        controller_name='gripper',
+        required_hardware=[HardwareRequirement('hw1', LifecycleState.ACTIVE)])]
+
+    # The newly pulled rule blocks activation because hw1 is not ACTIVE.
+    assert engine.get_next_transition() is None
+
+
+def test_controller_with_no_dependency_rule_is_satisfiable(inferred_rules_config):
+    """A controller named in a goal but absent from the pulled rules has no
+    requirements, so the goal is accepted instead of crashing on a missing rule."""
+    lock = threading.Lock()
+    engine = ForemanEngine(inferred_rules_config, lock)
+
+    provider = _FakeDependencyProvider()
+    # The provider knows a rule, but for a DIFFERENT controller, so 'gripper' has no rule.
+    provider.rules = [ControllerDependencyRule(
+        controller_name='new_controller',
+        required_hardware=[HardwareRequirement('hw1', LifecycleState.ACTIVE)])]
+    engine.set_dependency_provider(provider)
+
+    engine.set_system_state([
+        Component('hw1', ComponentType.HARDWARE, LifecycleState.INACTIVE),
+        Component('gripper', ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+    ])
+
+    # 'gripper' has no rule, so no hardware requirements and goal must be accepted, not crash.
+    response = engine.request_goal('run')
     assert response.success is True

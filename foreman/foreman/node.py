@@ -47,6 +47,8 @@ class ForemanNode(Node):
             controller_manager_name=controller_manager_name,
             lifecycle_nodes=self.foreman_config.lifecycle_nodes
         )
+        # Planner queries dependency rules from the monitor when planning.
+        self.foreman_engine.set_dependency_provider(self.component_state_monitor)
         self.controller_manager_service_caller = adapters.ControllerManagerServiceCaller(
             node=self,
             controller_manager_name=controller_manager_name

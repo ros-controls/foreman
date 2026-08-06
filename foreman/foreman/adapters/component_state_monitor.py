@@ -1,6 +1,9 @@
+import threading
 from typing import Dict, List
 
 from controller_manager_msgs.msg import ControllerManagerActivity
+from controller_manager_msgs.srv import ListControllers
+from controller_manager_msgs.srv import ListHardwareComponents
 from lifecycle_msgs.msg import TransitionEvent
 from lifecycle_msgs.srv import GetState
 from rclpy.event_handler import QoSSubscriptionMatchedInfo
@@ -14,6 +17,8 @@ from rclpy.qos import ReliabilityPolicy
 from foreman.engine import ForemanEngine
 from foreman.types import Component
 from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
+from foreman.types import HardwareRequirement
 from foreman.types import LifecycleState
 
 
@@ -64,6 +69,24 @@ class ComponentStateMonitor:
             f"{self._logger_prefix} Subscribed to /{controller_manager_name}/activity"
         )
 
+        # Service clients used to query controller_manager when building dependency rules.
+        self._client_list_controllers = self._node.create_client(
+            ListControllers,
+            f'/{controller_manager_name}/list_controllers',
+            callback_group=self._node.callback_group_subscriber
+        )
+        self._client_list_hardware_components = self._node.create_client(
+            ListHardwareComponents,
+            f'/{controller_manager_name}/list_hardware_components',
+            callback_group=self._node.callback_group_subscriber
+        )
+
+        # Latest controller_manager observations used to infer dependency rules.
+        # Updated asynchronously from controller_manager callbacks.
+        self._dependency_lock = threading.Lock()
+        self._latest_controllers = []
+        self._latest_hardware_components = []
+
         # --- Lifecycle node monitoring ---
         self._lc_node_get_state_clients: Dict[str, object] = {}
 
@@ -96,6 +119,88 @@ class ComponentStateMonitor:
                 f"{self._logger_prefix} Monitoring lifecycle nodes: {lifecycle_nodes}"
             )
 
+    @staticmethod
+    def infer_dependency_rules(controller_states, hardware_components):
+        """Infer each controller's hardware dependencies from its required interfaces.
+
+        A command interface requires its owning hardware ACTIVE; a state interface
+        requires it only INACTIVE. If a controller needs both from one hardware, ACTIVE wins.
+        """
+        owner_of_interface = {}
+        # Build a mapping of interface names to their owning hardware components
+        for hardware in hardware_components:
+            for interface in list(hardware.command_interfaces) + list(hardware.state_interfaces):
+                owner_of_interface[interface.name] = hardware.name
+
+        dependency_rules = []
+        for controller in controller_states:
+            # Map required interfaces to hardware components and their required lifecycle states
+            required_hardware_state = {}
+            for interface in controller.required_command_interfaces:
+                hardware_name = owner_of_interface.get(interface)
+                if hardware_name:
+                    required_hardware_state[hardware_name] = LifecycleState.ACTIVE
+
+            for interface in controller.required_state_interfaces:
+                hardware_name = owner_of_interface.get(interface)
+                if hardware_name and hardware_name not in required_hardware_state:
+                    required_hardware_state[hardware_name] = LifecycleState.INACTIVE
+
+            dependency_rules.append(ControllerDependencyRule(
+                controller_name=controller.name,
+                required_hardware=[
+                    HardwareRequirement(name=name, state=state)
+                    for name, state in required_hardware_state.items()
+                ],
+            ))
+        return dependency_rules
+
+    def get_dependency_rules(self):
+        """
+        Infer dependency rules from the latest controller_manager observations.
+
+        The observations are refreshed asynchronously, so this method never blocks.
+        """
+        with self._dependency_lock:
+            return self.infer_dependency_rules(
+                self._latest_controllers, self._latest_hardware_components)
+
+    def _refresh_dependency_rules(self):
+        """Refresh dependency observations asynchronously.
+
+        Query hardware first, then controllers, before rebuilding dependencies.
+        """
+        if not (self._client_list_hardware_components.service_is_ready()
+                and self._client_list_controllers.service_is_ready()):
+            return
+        future = self._client_list_hardware_components.call_async(
+            ListHardwareComponents.Request())
+        future.add_done_callback(self._on_hardware_components_response)
+
+    def _on_hardware_components_response(self, future):
+        """Store the latest hardware observations and request controllers."""
+        try:
+            hardware = future.result().component
+        except Exception as e:
+            self._node.get_logger().warning(
+                f"{self._logger_prefix} Failed to list hardware components: {e}")
+            return
+        with self._dependency_lock:
+            self._latest_hardware_components = hardware
+        ctrl_future = self._client_list_controllers.call_async(ListControllers.Request())
+        ctrl_future.add_done_callback(self._on_controllers_response)
+
+    def _on_controllers_response(self, future):
+        """Store the latest controller observations."""
+        try:
+            controllers = future.result().controller
+        except Exception as e:
+            self._node.get_logger().warning(
+                f"{self._logger_prefix} Failed to list controllers: {e}")
+            return
+        with self._dependency_lock:
+            self._latest_controllers = controllers
+
     # TODO: use matched event for this topic as well? That way we know if controller manager dies.
     # Minor. Currently we catch unexpected transitions in the engine (all components go to finalized)
     def _activity_callback(self, msg: ControllerManagerActivity):
@@ -124,6 +229,8 @@ class ComponentStateMonitor:
 
         self._cm_components = components
         self._push_merged_state()
+        # Refresh dependency observations after receiving a new activity update.
+        self._refresh_dependency_rules()
 
     def _on_lifecycle_publisher_matched(self, name: str, info: QoSSubscriptionMatchedInfo):
         """DDS matched event: lifecycle node's transition_event publisher appeared or disappeared."""

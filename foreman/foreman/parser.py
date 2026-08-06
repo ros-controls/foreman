@@ -8,7 +8,6 @@ import yaml
 from foreman.types import Component
 from foreman.types import ComponentType
 from foreman.types import ControllerDependencyRule
-from foreman.types import HardwareRequirement
 from foreman.types import LifecycleState
 from foreman.types import SystemGoal
 
@@ -44,49 +43,6 @@ def parse_state_string(state_str: str) -> LifecycleState:
     return state_mapping[normalized]
 
 
-def parse_requires(
-    requires: List[str], hardware: List[str], lifecycle_nodes: List[str] = None
-) -> List[HardwareRequirement]:
-    """Parse the 'requires' field into list of HardwareRequirement.
-
-    Supports:
-    - [all, inactive] -> all hardware + lifecycle nodes must be at that state
-    - [component_name, active] -> specific hardware or lifecycle node must be at that state
-    """
-    if lifecycle_nodes is None:
-        lifecycle_nodes = []
-
-    if not requires:
-        return []
-
-    # we can get either a single [component, state] entry
-    # or a list of [component, state] entries.
-    # here we normalize so we work with a list of [component, state]
-    if len(requires) == 2 and isinstance(requires[0], str):
-        requires_normalized = [requires]
-    else:
-        requires_normalized = requires
-
-    reqs = []
-
-    for req in requires_normalized:
-        if not isinstance(req, list) or len(req) != 2:
-            raise ValueError(f"Invalid requirement format: {req}. Expected [target, state].")
-
-        target = req[0]
-        state = parse_state_string(req[1])
-
-        if target == 'all':
-            reqs.extend([
-                HardwareRequirement(name=name, state=state)
-                for name in hardware + lifecycle_nodes
-            ])
-        else:
-            reqs.append(HardwareRequirement(name=target, state=state))
-
-    return reqs
-
-
 def parse_yaml_file(file_path: Path) -> ParsedScenario:
     """Parse a scenario YAML file into a ParsedScenario object."""
     with open(file_path, 'r') as f:
@@ -98,16 +54,8 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     hardware = data.get('hardware', [])
     lifecycle_nodes = data.get('lifecycle_nodes', [])
 
-    dependency_rules = []
-    controllers = data.get('controllers', {})
-    for ctrl_name, ctrl_config in controllers.items():
-        requires = ctrl_config.get('requires', [])
-        reqs = parse_requires(requires, hardware, lifecycle_nodes)
-
-        dependency_rules.append(ControllerDependencyRule(
-            controller_name=ctrl_name,
-            required_hardware=reqs
-        ))
+    # Dependencies are inferred at runtime from the controller_manager
+    dependency_rules: List[ControllerDependencyRule] = []
 
     goals = {}
     goal_states = data.get('goal_states', {})
@@ -152,8 +100,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
             metadata[key] = value
 
     tracked_components = set(hardware + lifecycle_nodes)
-    for rule in dependency_rules:
-        tracked_components.add(rule.controller_name)
     for goal in goals.values():
         tracked_components.update(c.name for c in goal.hardware_goals)
         tracked_components.update(c.name for c in goal.controller_goals)
