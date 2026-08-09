@@ -18,7 +18,6 @@ export ROS_BASE=$SNAP/rosruntime
 export PYTHONPATH=$PYTHONPATH:$ROS_BASE/lib/python3.12/site-packages
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROS_BASE/lib
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROS_BASE/usr/lib
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROS_BASE/usr/include/comm/datalayer/
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROS_BASE/usr/lib/x86_64-linux-gnu/
 export PATH=${PATH}:${ROS_BASE}/opt/ros/jazzy/bin
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${ROS_BASE}/opt/ros/jazzy/lib

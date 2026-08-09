@@ -1,7 +1,3 @@
-controller_manager: b_controlled_box_cm
-
-transition_pause: 0.5
-
 hardware:
   - FrankaHardwareInterface
   - kassow
@@ -11,7 +7,7 @@ lifecycle_nodes:
 
 controllers:
   joint_state_broadcaster:
-    requires: 
+    requires:
       - [kassow, inactive]
       - [FrankaHardwareInterface, inactive]
       - [dummy_lifecycle_node, active]

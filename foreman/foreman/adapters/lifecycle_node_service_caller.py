@@ -1,13 +1,12 @@
 from typing import Dict, List
 
+from lifecycle_msgs.msg import Transition
+from lifecycle_msgs.srv import ChangeState
 from rclpy.node import Node
 from rclpy.task import Future
 
-from lifecycle_msgs.srv import ChangeState
-from lifecycle_msgs.msg import Transition
-
-from foreman.types import LifecycleState, SystemTransitionCommand
-
+from foreman.types import LifecycleState
+from foreman.types import SystemTransitionCommand
 
 # maps (current_state, goal_state) to the lifecycle transition ID
 _TRANSITION_MAP = {
@@ -19,9 +18,7 @@ _TRANSITION_MAP = {
 
 
 class LifecycleNodeServiceCaller:
-    """
-    Adapter for transitioning lifecycle nodes. Uses /<node>/change_state service.
-    """
+    """Adapter for transitioning lifecycle nodes. Uses /<node>/change_state service."""
 
     def __init__(self, node: Node, lifecycle_nodes: List[str]):
         self._node = node

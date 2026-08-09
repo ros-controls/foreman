@@ -1,30 +1,28 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
 import yaml
 
-from foreman.types import (
-    Component,
-    ComponentType,
-    ControllerDependencyRule,
-    HardwareRequirement,
-    LifecycleState,
-    SystemGoal,
-)
+from foreman.types import Component
+from foreman.types import ComponentType
+from foreman.types import ControllerDependencyRule
+from foreman.types import HardwareRequirement
+from foreman.types import LifecycleState
+from foreman.types import SystemGoal
 
 # TODO: Once we settle on a config model
 # TODO: Bulletproof this config parsing once we settle on one
 # TODO: reconsider naming, for example ParsedScenario
 # TODO: Rethink parsing output structure dataclass
 
+
 @dataclass
 class ParsedScenario:
     """Complete parsed scenario configuration."""
 
-    controller_manager: str
-    transition_pause: float
-    autostart_goal_state: str 
+    autostart_goal_state: str
     hardware: List[str]
     dependency_rules: List[ControllerDependencyRule]
     goals: Dict[str, SystemGoal]
@@ -75,7 +73,7 @@ def parse_requires(
     for req in requires_normalized:
         if not isinstance(req, list) or len(req) != 2:
             raise ValueError(f"Invalid requirement format: {req}. Expected [target, state].")
-            
+
         target = req[0]
         state = parse_state_string(req[1])
 
@@ -98,9 +96,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     if data is None:
         raise ValueError("Empty YAML file")
 
-    controller_manager = data.get('controller_manager', '')
-    transition_pause = data.get('transition_pause', 0.0)
-    autostart_goal_state = data.get('autostart_goal_state','')
+    autostart_goal_state = data.get('autostart_goal_state', '')
     hardware = data.get('hardware', [])
     lifecycle_nodes = data.get('lifecycle_nodes', [])
 
@@ -151,11 +147,12 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     metadata = {}
-    known_keys = {'controller_manager', 'transition_pause', 'hardware', 'lifecycle_nodes', 'controllers', 'goal_states', 'autostart_goal_state'}
+    known_keys = {'autostart_goal_state', 'hardware',
+                  'lifecycle_nodes', 'controllers', 'goal_states'}
     for key, value in data.items():
         if key not in known_keys:
             metadata[key] = value
-    
+
     tracked_components = set(hardware + lifecycle_nodes)
     for rule in dependency_rules:
         tracked_components.add(rule.controller_name)
@@ -171,8 +168,6 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     return ParsedScenario(
-        controller_manager=controller_manager,
-        transition_pause=transition_pause,
         autostart_goal_state=autostart_goal_state,
         hardware=hardware,
         lifecycle_nodes=lifecycle_nodes,

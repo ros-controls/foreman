@@ -4,11 +4,11 @@ from foreman.planner import Planner
 from foreman.types import Component
 from foreman.types import ComponentType
 from foreman.types import ControllerDependencyRule
+from foreman.types import HardwareRequirement
 from foreman.types import LifecycleState
 from foreman.types import SystemGoal
 from foreman.types import SystemState
 from foreman.types import SystemTransitionCommand
-from foreman.types import HardwareRequirement
 
 
 @pytest.fixture
@@ -61,7 +61,8 @@ def test_scenario_1_standard_bring_up(basic_planner):
         'franka_jtc': Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
     })
     goal = SystemGoal('active',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
                       controller_goals=[Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
 
     cmd = basic_planner.get_next_transition(state, goal)
@@ -90,7 +91,8 @@ def test_scenario_2_standard_teardown(basic_planner):
         'franka_jtc': Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.ACTIVE)
     })
     goal = SystemGoal('unc',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)],
                       controller_goals=[Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)])
 
     cmd = basic_planner.get_next_transition(state, goal)
@@ -119,7 +121,8 @@ def test_scenario_3_broadcaster_bringup(broadcaster_planner):
         'joint_state_broadcaster': Component('joint_state_broadcaster', ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
     })
     goal = SystemGoal('active',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
                       controller_goals=[Component('joint_state_broadcaster', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
 
     cmd = broadcaster_planner.get_next_transition(state, goal)
@@ -137,7 +140,8 @@ def test_scenario_4_partial_pause(basic_planner):
         'franka_jtc': Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.ACTIVE)
     })
     goal = SystemGoal('idle',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.INACTIVE)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.INACTIVE)],
                       controller_goals=[Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.INACTIVE)])
 
     cmd = basic_planner.get_next_transition(state, goal)
@@ -157,14 +161,17 @@ def test_scenario_5_controller_swap(basic_planner):
         'ctrl_B': Component('ctrl_B', ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     })
     goal = SystemGoal('swap',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
                       controller_goals=[
                           Component('ctrl_A', ComponentType.CONTROLLER, LifecycleState.INACTIVE),
                           Component('ctrl_B', ComponentType.CONTROLLER, LifecycleState.ACTIVE)
                       ])
 
-    basic_planner.rules['ctrl_A'] = ControllerDependencyRule('ctrl_A', [HardwareRequirement('franka_hw', LifecycleState.ACTIVE)])
-    basic_planner.rules['ctrl_B'] = ControllerDependencyRule('ctrl_B', [HardwareRequirement('franka_hw', LifecycleState.ACTIVE)])
+    basic_planner.rules['ctrl_A'] = ControllerDependencyRule(
+        'ctrl_A', [HardwareRequirement('franka_hw', LifecycleState.ACTIVE)])
+    basic_planner.rules['ctrl_B'] = ControllerDependencyRule(
+        'ctrl_B', [HardwareRequirement('franka_hw', LifecycleState.ACTIVE)])
 
     cmd = basic_planner.get_next_transition(state, goal)
     assert cmd.component.name == 'ctrl_A'
@@ -182,7 +189,8 @@ def test_scenario_6_hardware_failure(basic_planner):
         'franka_jtc': Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     })
     goal = SystemGoal('active',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
                       controller_goals=[Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
 
     cmd = basic_planner.get_next_transition(state, goal)
@@ -190,18 +198,20 @@ def test_scenario_6_hardware_failure(basic_planner):
     assert cmd.component.name == 'franka_hw'
     assert cmd.goal_state == LifecycleState.ACTIVE
 
+
 def test_scenario_7_controller_teardown_failure(basic_planner):
     state = SystemState(components={
         'franka_hw': Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE),
         'franka_jtc': Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.ACTIVE)
     })
     goal = SystemGoal('unc',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)],
                       controller_goals=[Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)])
 
     cmd = basic_planner.get_next_transition(state, goal)
     assert cmd.component.name == 'franka_jtc'
-    
+
     # Command applied, but failed. We re-issue the command.
     cmd_retry = basic_planner.get_next_transition(state, goal)
     assert cmd_retry.component.name == 'franka_jtc'
@@ -214,7 +224,8 @@ def test_scenario_8_controller_activation_failure(basic_planner):
         'franka_jtc': Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     })
     goal = SystemGoal('active',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
                       controller_goals=[Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
 
     cmd = basic_planner.get_next_transition(state, goal)
@@ -249,7 +260,8 @@ def test_scenario_10_controller_configure_blocked_by_hardware(basic_planner):
         'franka_jtc': Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
     })
     goal = SystemGoal('idle',
-                      hardware_goals=[Component('franka_hw', ComponentType.HARDWARE, LifecycleState.INACTIVE)],
+                      hardware_goals=[
+                          Component('franka_hw', ComponentType.HARDWARE, LifecycleState.INACTIVE)],
                       controller_goals=[Component('franka_jtc', ComponentType.CONTROLLER, LifecycleState.INACTIVE)])
 
     # First, we configure hardware before controller
@@ -285,7 +297,8 @@ def test_scenario_11_lifecycle_node_bringup(lifecycle_planner):
         'gripper': Component('gripper', ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
     })
     goal = SystemGoal('active',
-                      lifecycle_node_goals=[Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)],
+                      lifecycle_node_goals=[
+                          Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)],
                       controller_goals=[Component('gripper', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
 
     cmd = lifecycle_planner.get_next_transition(state, goal)
@@ -316,7 +329,8 @@ def test_scenario_12_controller_blocked_by_lifecycle_node(lifecycle_planner):
         'gripper': Component('gripper', ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     })
     goal = SystemGoal('active',
-                      lifecycle_node_goals=[Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)],
+                      lifecycle_node_goals=[
+                          Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)],
                       controller_goals=[Component('gripper', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
 
     # Lifecycle node must activate before the controller can
@@ -338,7 +352,8 @@ def test_scenario_13_lifecycle_node_stepdown_blocked_by_controller(lifecycle_pla
         'gripper': Component('gripper', ComponentType.CONTROLLER, LifecycleState.ACTIVE)
     })
     goal = SystemGoal('idle',
-                      lifecycle_node_goals=[Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.INACTIVE)],
+                      lifecycle_node_goals=[
+                          Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.INACTIVE)],
                       controller_goals=[Component('gripper', ComponentType.CONTROLLER, LifecycleState.INACTIVE)])
 
     # Controller must deactivate first (priority: ctrl deactivate > infra down)
@@ -372,8 +387,10 @@ def test_scenario_14_mixed_hw_lifecycle_and_controllers():
         'jtc': Component('jtc', ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
     })
     goal = SystemGoal('active',
-                      hardware_goals=[Component('hw_arm', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
-                      lifecycle_node_goals=[Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)],
+                      hardware_goals=[
+                          Component('hw_arm', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+                      lifecycle_node_goals=[
+                          Component('robot_manager', ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)],
                       controller_goals=[Component('jtc', ComponentType.CONTROLLER, LifecycleState.ACTIVE)])
 
     # Infrastructure steps up first (hw and lifecycle node interleaved)
@@ -387,7 +404,8 @@ def test_scenario_14_mixed_hw_lifecycle_and_controllers():
 
     # Verify controller comes last (after all infrastructure is ACTIVE)
     ctrl_indices = [i for i, (name, _) in enumerate(transitions) if name == 'jtc']
-    infra_indices = [i for i, (name, _) in enumerate(transitions) if name in ('hw_arm', 'robot_manager')]
+    infra_indices = [i for i, (name, _) in enumerate(transitions)
+                     if name in ('hw_arm', 'robot_manager')]
     assert all(c > max(infra_indices) for c in ctrl_indices)
 
     # Verify we reached the goal

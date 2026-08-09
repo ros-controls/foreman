@@ -25,7 +25,7 @@ controllers:
   joint_state_broadcaster:
     requires: [all, inactive]
   kassow_joint_trajectory_controller:
-    requires: 
+    requires:
       - [kassow, active]
       - [my_node, active]
   franka_joint_trajectory_controller:
@@ -43,7 +43,7 @@ goal_states:
       kassow: inactive
     lifecycle_nodes:
       my_node: active
-  
+
   # ... more named states
 ```
 
@@ -83,4 +83,3 @@ Check `node.py` how we glue it all up into a ros executable and run it.
     - `ControllerManagerServiceCaller` (outbound): Calls `controller_manager` services.
     - `LifecycleNodeServiceCaller` (outbound): Calls `/node/change_state` for lifecycle node transitions.
     - `RosSetGoalServer` (inbound): Exposes `/foreman/set_goal` service.
-    - `DatalayerAdapter` (outbound): ctrlX Datalayer integration (optional, to be added).

@@ -1,7 +1,7 @@
 name: b-controlled-box-foreman
 version: '0.1.0'
-summary: Foreman ROS 2 Package with ctrlX Data Layer integration
-description: Package for managing ros2_control component lifecycle using ctrlX non-RT Data Layer
+summary: Foreman ROS 2 Package for ros2_control component lifecycle management
+description: Package for managing ros2_control component lifecycle, deployed as a ctrlX Core SNAP
 base: core24
 confinement: strict
 
@@ -10,10 +10,6 @@ plugs:
     interface: content
     content: executables
     target: $SNAP/rosruntime
-  datalayer:
-    interface: content
-    content: datalayer
-    target: $SNAP_DATA/.datalayer
   active-solution:
     interface: content
     content: solutions
@@ -26,7 +22,6 @@ apps:
     plugs:
       - network
       - network-bind
-      - datalayer
       - active-solution
       - ros-base
 
@@ -34,7 +29,7 @@ parts:
   foreman-app:
     plugin: dump
     source: ./foreman_snap_install
-    stage-packages: 
+    stage-packages:
       - libpython3.12
     override-build: |
       craftctl default
@@ -45,7 +40,7 @@ parts:
     organize:
       entrypoint.sh: bin/entrypoint.sh
       foreman.default.env: etc/foreman.default.env
-      
+
 lint:
   ignore:
     - library:
