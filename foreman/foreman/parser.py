@@ -22,14 +22,14 @@ from foreman.types import SystemGoal
 class ParsedScenario:
     """Complete parsed scenario configuration."""
 
-    autostart_goal_state: str
     hardware: List[str]
     dependency_rules: List[ControllerDependencyRule]
     goals: Dict[str, SystemGoal]
     lifecycle_nodes: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     tracked_components: Set[str] = field(default_factory=set)
-    
+    autostart_goal_state: str = ''
+
 
 def parse_state_string(state_str: str) -> LifecycleState:
     """Convert YAML state string to LifecycleState enum."""
@@ -174,5 +174,5 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         dependency_rules=dependency_rules,
         goals=goals,
         metadata=metadata,
-        tracked_components=tracked_components        
+        tracked_components=tracked_components
     )
