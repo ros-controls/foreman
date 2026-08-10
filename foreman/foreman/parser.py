@@ -143,7 +143,8 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
             name=goal_name,
             hardware_goals=hw_goals,
             controller_goals=ctrl_goals,
-            lifecycle_node_goals=lc_goals
+            lifecycle_node_goals=lc_goals,
+            allowed_transitions=goal_config.get('allowed_transitions', [])
         )
 
     metadata = {}
@@ -166,6 +167,14 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
             f"autostart_goal_state '{autostart_goal_state}' not found in goal_states. "
             f"Available: {list(goals.keys())}"
         )
+
+    for goal in goals.values():
+        unknown_targets = [target for target in goal.allowed_transitions if target not in goals]
+        if unknown_targets:
+            raise ValueError(
+                f"Goal '{goal.name}' has allowed_transitions to unknown goal(s) {unknown_targets}. "
+                f"Available: {list(goals.keys())}"
+            )
 
     return ParsedScenario(
         autostart_goal_state=autostart_goal_state,
