@@ -1,0 +1,55 @@
+hardware:
+  - FrankaHardwareInterface
+  - kassow
+
+lifecycle_nodes:
+  - dummy_lifecycle_node
+
+controllers:
+  joint_state_broadcaster:
+    requires:
+      - [kassow, inactive]
+      - [FrankaHardwareInterface, inactive]
+      - [dummy_lifecycle_node, active]
+  kassow_joint_trajectory_controller:
+    requires: [kassow, active]
+  franka_joint_trajectory_controller:
+    requires: [FrankaHardwareInterface, active]
+
+goal_states:
+
+  idle:
+    allowed_transitions: [all_broadcasters]
+    controllers:
+      joint_state_broadcaster: inactive
+      kassow_joint_trajectory_controller: inactive
+      franka_joint_trajectory_controller: inactive
+    hardware:
+      FrankaHardwareInterface: inactive
+      kassow: inactive
+    lifecycle_nodes:
+      dummy_lifecycle_node: inactive
+
+  all_broadcasters:
+    allowed_transitions: [active]
+    controllers:
+      joint_state_broadcaster: active
+      kassow_joint_trajectory_controller: inactive
+      franka_joint_trajectory_controller: inactive
+    hardware:
+      FrankaHardwareInterface: active
+      kassow: active
+    lifecycle_nodes:
+      dummy_lifecycle_node: active
+
+  active:
+    allowed_transitions: [all_broadcasters, active]
+    controllers:
+      joint_state_broadcaster: active
+      kassow_joint_trajectory_controller: active
+      franka_joint_trajectory_controller: active
+    hardware:
+      FrankaHardwareInterface: active
+      kassow: active
+    lifecycle_nodes:
+      dummy_lifecycle_node: active

@@ -278,3 +278,94 @@ def test_goal_accepted_when_dependency_already_satisfied(dependency_config):
 
     response = engine.request_goal('active')
     assert response.success is True
+
+
+# --- Restricted Transition (Profile Switching) Tests ---
+
+@pytest.fixture
+def profile_switching_config():
+    """Config where each goal restricts which goal may follow it."""
+    goals = {
+        'idle': SystemGoal(
+            'idle',
+            hardware_goals=[Component('hw1', ComponentType.HARDWARE, LifecycleState.INACTIVE)],
+            allowed_transitions=['all_broadcasters']
+        ),
+        'all_broadcasters': SystemGoal(
+            'all_broadcasters',
+            hardware_goals=[Component('hw1', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+            allowed_transitions=['active']
+        ),
+        'active': SystemGoal(
+            'active',
+            hardware_goals=[Component('hw1', ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+            allowed_transitions=['all_broadcasters', 'active']
+        ),
+    }
+    return ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        goals=goals,
+        tracked_components={"hw1"}
+    )
+
+
+def _ready_engine(config):
+    lock = threading.Lock()
+    engine = ForemanEngine(config, lock)
+    engine.set_system_state([Component('hw1', ComponentType.HARDWARE, LifecycleState.INACTIVE)])
+    return engine
+
+
+def test_allowed_transition_is_accepted(profile_switching_config):
+    engine = _ready_engine(profile_switching_config)
+
+    engine.request_goal('idle')
+    response = engine.request_goal('all_broadcasters')
+    assert response.success is True
+
+
+def test_allowed_self_transition_is_accepted(profile_switching_config):
+    engine = _ready_engine(profile_switching_config)
+
+    engine.request_goal('idle')
+    engine.request_goal('all_broadcasters')
+    engine.request_goal('active')
+    response = engine.request_goal('active')
+    assert response.success is True
+
+
+def test_disallowed_direct_transition_is_rejected(profile_switching_config):
+    engine = _ready_engine(profile_switching_config)
+
+    engine.request_goal('idle')
+    response = engine.request_goal('active')
+    assert response.success is False
+    assert "not allowed" in response.message
+
+
+def test_disallowed_backward_transition_is_rejected(profile_switching_config):
+    engine = _ready_engine(profile_switching_config)
+
+    engine.request_goal('idle')
+    engine.request_goal('all_broadcasters')
+    response = engine.request_goal('idle')
+    assert response.success is False
+    assert "not allowed" in response.message
+
+
+def test_first_goal_request_is_unrestricted(profile_switching_config):
+    """No current goal yet, so any declared goal may be requested first."""
+    engine = _ready_engine(profile_switching_config)
+
+    response = engine.request_goal('active')
+    assert response.success is True
+
+
+def test_unrestricted_config_allows_any_transition(minimal_foreman_config):
+    """Goals without allowed_transitions remain fully unrestricted (regression)."""
+    engine = _ready_engine(minimal_foreman_config)
+
+    engine.request_goal('active_goal')
+    response = engine.request_goal('active_goal')
+    assert response.success is True

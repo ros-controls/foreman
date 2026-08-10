@@ -36,6 +36,18 @@ def parsed_autostart_scenario(autostart_scenario_path):
     return parse_yaml_file(autostart_scenario_path)
 
 
+@pytest.fixture
+def profile_switching_scenario_path():
+    """Path to the scenario_profile_switching.yaml file."""
+    return Path(__file__).parent.parent / "config" / "scenario_profile_switching.yaml"
+
+
+@pytest.fixture
+def parsed_profile_switching_scenario(profile_switching_scenario_path):
+    """Parse the scenario_profile_switching.yaml file."""
+    return parse_yaml_file(profile_switching_scenario_path)
+
+
 class TestParsedScenario:
     """Tests for ParsedScenario structure."""
 
@@ -60,6 +72,22 @@ class TestAutostartScenario:
 
     def test_autostart_goal_state_is_a_declared_goal(self, parsed_autostart_scenario):
         assert parsed_autostart_scenario.autostart_goal_state in parsed_autostart_scenario.goals
+
+
+class TestProfileSwitchingScenario:
+    """Tests for a scenario restricting which goal states may follow which."""
+
+    def test_idle_allows_only_all_broadcasters(self, parsed_profile_switching_scenario):
+        goal = parsed_profile_switching_scenario.goals["idle"]
+        assert goal.allowed_transitions == ["all_broadcasters"]
+
+    def test_all_broadcasters_allows_only_active(self, parsed_profile_switching_scenario):
+        goal = parsed_profile_switching_scenario.goals["all_broadcasters"]
+        assert goal.allowed_transitions == ["active"]
+
+    def test_active_allows_all_broadcasters_and_itself(self, parsed_profile_switching_scenario):
+        goal = parsed_profile_switching_scenario.goals["active"]
+        assert goal.allowed_transitions == ["all_broadcasters", "active"]
 
 
 class TestDependencyRules:

@@ -54,6 +54,15 @@ class ForemanEngine:
             if not self._is_ready:
                 return ForemanResponse(False, "Foreman not ready. Is /activity topic being published?")
 
+            if (self._current_goal
+                    and self._current_goal.allowed_transitions
+                    and goal_name not in self._current_goal.allowed_transitions):
+                return ForemanResponse(
+                    False,
+                    f"Transition from '{self._current_goal.name}' to '{goal_name}' is not allowed. "
+                    f"Allowed next goals: {sorted(self._current_goal.allowed_transitions)}"
+                )
+
             missing_components = self._locked_missing_goal_components(goal)
             if missing_components:
                 return ForemanResponse(

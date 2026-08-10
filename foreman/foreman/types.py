@@ -144,6 +144,7 @@ class SystemGoal:
     hardware_goals: List[Component] = field(default_factory=list)
     controller_goals: List[Component] = field(default_factory=list)
     lifecycle_node_goals: List[Component] = field(default_factory=list)
+    allowed_transitions: List[str] = field(default_factory=list)
 
 
 @dataclass
