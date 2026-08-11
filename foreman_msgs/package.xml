@@ -3,13 +3,15 @@
 <package format="3">
   <name>foreman_msgs</name>
   <version>0.0.1</version>
-  <description>Message and service definitions for the Foreman system.</description>
+  <description>Message and action definitions for the Foreman system.</description>
 
   <maintainer email="nikola.banovic@b-robotized.com">Nikola Banovic</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <depend>action_msgs</depend>
 
   <exec_depend>rosidl_default_runtime</exec_depend>
 

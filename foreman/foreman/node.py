@@ -56,7 +56,7 @@ class ForemanNode(Node):
             lifecycle_nodes=self.foreman_config.lifecycle_nodes
         )
 
-        self.ros_set_goal_server = adapters.RosSetGoalServer(
+        self.ros_set_goal_server = adapters.RosSetGoalActionServer(
             node=self,
             engine=self.foreman_engine
         )

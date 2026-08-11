@@ -1,0 +1,11 @@
+# Drive the system to a named goal state.
+# Succeeds once the goal is reached, not when it is accepted.
+
+string goal
+---
+bool success
+string message
+ForemanErrorState error
+---
+bool at_goal
+ForemanErrorState error
