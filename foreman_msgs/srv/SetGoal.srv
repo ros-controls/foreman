@@ -1,0 +1,6 @@
+# TODO: add description
+
+string goal
+---
+bool success
+string message

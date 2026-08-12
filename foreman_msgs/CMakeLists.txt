@@ -18,12 +18,17 @@ set(msg_files
   "msg/ForemanErrorState.msg"
 )
 
+set(srv_files
+  "srv/SetGoal.srv"
+)
+
 set(action_files
   "action/SetGoal.action"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_files}
+  ${srv_files}
   ${action_files}
   DEPENDENCIES action_msgs
 )
