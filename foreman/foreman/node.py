@@ -22,6 +22,7 @@ class ForemanNode(Node):
         super().__init__('foreman_node')
 
         self.foreman_state_lock = threading.Lock()
+        self.set_goal_execution_lock = threading.Lock()
         # for error handling ,so we know what and when failed and who to blame
         self._service_call_active_future = False
         self._active_transition = None
@@ -58,11 +59,13 @@ class ForemanNode(Node):
 
         self.ros_set_goal_action_server = adapters.RosSetGoalActionServer(
             node=self,
-            engine=self.foreman_engine
+            engine=self.foreman_engine,
+            execution_lock=self.set_goal_execution_lock
         )
         self.ros_set_goal_server = adapters.RosSetGoalServer(
             node=self,
-            engine=self.foreman_engine
+            engine=self.foreman_engine,
+            execution_lock=self.set_goal_execution_lock
         )
 
         # MAIN LOOP ================================================

@@ -1,3 +1,4 @@
+import threading
 import unittest
 from unittest.mock import MagicMock
 
@@ -73,9 +74,16 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.addCleanup(self.node.destroy_node)
         self.engine = MagicMock()
 
-    def _server(self):
+    def _server(self, execution_lock=None):
         # poll_period=0 so the wait loop does not slow the tests down
-        return RosSetGoalActionServer(self.node, self.engine, poll_period=0.0)
+        if execution_lock is None:
+            execution_lock = threading.Lock()
+        return RosSetGoalActionServer(
+            self.node,
+            self.engine,
+            poll_period=0.0,
+            execution_lock=execution_lock
+        )
 
     def test_action_is_advertised_as_foreman_set_goal(self):
         self._server()
@@ -96,6 +104,20 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("not found", result.message)
 
+    def test_busy_set_goal_execution_aborts_without_requesting_goal(self):
+        self.engine.get_engine_snapshot.return_value = _snapshot()
+        execution_lock = threading.Lock()
+        execution_lock.acquire()
+        handle = _goal_handle()
+
+        result = self._server(execution_lock=execution_lock)._execute(handle)
+
+        handle.abort.assert_called_once()
+        self.engine.request_goal.assert_not_called()
+        self.assertFalse(result.success)
+        self.assertIn("already active", result.message)
+        execution_lock.release()
+
     def test_succeeds_only_once_engine_reports_at_goal(self):
         self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
         # two polls in transition, then arrived
@@ -113,6 +135,18 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertTrue(result.success)
         # feedback published for each poll that was still in transition
         self.assertEqual(handle.publish_feedback.call_count, 2)
+
+    def test_successful_goal_releases_execution_lock(self):
+        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=True)
+        execution_lock = threading.Lock()
+        handle = _goal_handle()
+
+        result = self._server(execution_lock=execution_lock)._execute(handle)
+
+        self.assertTrue(result.success)
+        self.assertTrue(execution_lock.acquire(blocking=False))
+        execution_lock.release()
 
     def test_feedback_carries_current_error_state(self):
         self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
