@@ -3,6 +3,7 @@ from .controller_manager_service_caller import ControllerManagerServiceCaller
 from .lifecycle_node_service_caller import LifecycleNodeServiceCaller
 from .ros_node_parameters import RosNodeParameters
 from .ros_set_goal_server import RosSetGoalServer
+from .ros_status_publisher import RosStatusPublisher
 
 try:
     from .datalayer.datalayer_adapter import DatalayerAdapter
@@ -16,6 +17,7 @@ __all__ = [
     "ControllerManagerServiceCaller",
     "LifecycleNodeServiceCaller",
     "RosSetGoalServer",
+    "RosStatusPublisher",
     "RosNodeParameters",
     "DatalayerAdapter"
 ]

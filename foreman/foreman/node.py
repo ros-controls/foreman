@@ -60,6 +60,10 @@ class ForemanNode(Node):
             node=self,
             engine=self.foreman_engine
         )
+        self.ros_status_publisher = adapters.RosStatusPublisher(
+            node=self,
+            engine=self.foreman_engine
+        )
 
         # MAIN LOOP ================================================
 
