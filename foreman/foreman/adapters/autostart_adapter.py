@@ -1,11 +1,12 @@
 from rclpy.node import Node
 
+from foreman.engine import ForemanEngine
 from foreman.types import LifecycleState
-from foreman.engine import ForemanEngine 
+
 
 class AutostartAdapter:
     """Adapter to transition automatically to a desired state after all desired components are loaded."""
-    
+
     STABLE_TICKS_REQUIRED = 50  # consecutive ticks with no state change before requesting transition
 
     def __init__(self, node: Node, engine: ForemanEngine, goal_name: str, autostart: bool = False):
@@ -33,7 +34,8 @@ class AutostartAdapter:
 
         if not self.all_components_ready():
             not_ready = self._get_not_ready_components()
-            self._node.get_logger().info(f"Some components are not ready yet: {not_ready}. Waiting before requesting autostart...", throttle_duration_sec=2)
+            self._node.get_logger().info(
+                f"Some components are not ready yet: {not_ready}. Waiting before requesting autostart...", throttle_duration_sec=2)
             self._stable_ticks = 0
             return
 
@@ -61,7 +63,8 @@ class AutostartAdapter:
 
     def _is_state_stable(self) -> bool:
         """Return True once the system state has been unchanged for STABLE_TICKS_REQUIRED consecutive ticks."""
-        current_states = {c.name: c.lifecycle_state for c in self.engine.get_engine_snapshot().components}
+        current_states = {
+            c.name: c.lifecycle_state for c in self.engine.get_engine_snapshot().components}
         if current_states != self._last_observed_states:
             self._last_observed_states = current_states
             self._stable_ticks = 0
@@ -89,4 +92,4 @@ class AutostartAdapter:
             all(name in observed for name in self.engine._config.tracked_components)
             and all(c.lifecycle_state >= desired_state for c in observed.values())
         )
-        return all_unconfigured 
+        return all_unconfigured
