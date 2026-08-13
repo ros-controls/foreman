@@ -19,7 +19,7 @@ class ForemanNode(Node):
     """Glues the Foreman Engine and its adapters."""
 
     def __init__(self):
-        super().__init__('foreman_node')
+        super().__init__('foreman')
 
         self.foreman_state_lock = threading.Lock()
         # for error handling ,so we know what and when failed and who to blame
@@ -152,7 +152,7 @@ def main(args=None):
     try:
         node = ForemanNode()
     except Exception as e:
-        print(f"[FATAL] [foreman_node]: Failed to initialize: {e}", file=sys.stderr)
+        print(f"[FATAL] [foreman]: Failed to initialize: {e}", file=sys.stderr)
         rclpy.shutdown()
         sys.exit(1)
 
