@@ -60,10 +60,7 @@ class ForemanNode(Node):
             node=self,
             engine=self.foreman_engine
         )
-        self.ros_status_publisher = adapters.RosStatusPublisher(
-            node=self,
-            engine=self.foreman_engine
-        )
+        self.ros_status_publisher = adapters.RosStatusPublisher(node=self)
 
         self.autostart_adapter = adapters.AutostartAdapter(
             node=self,
@@ -90,6 +87,8 @@ class ForemanNode(Node):
         """Execute the main control loop."""
         if bool(self.foreman_config.autostart_goal_state) and not self.autostart_adapter.is_done:
             self.autostart_adapter.autostart()
+
+        self.ros_status_publisher.publish_status(self.foreman_engine.get_engine_snapshot())
 
         # do we have an active transition running?
         if self._service_call_active_future and self._service_call_active_future.done():

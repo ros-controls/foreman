@@ -1,59 +1,48 @@
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy
+from rclpy.qos import HistoryPolicy
+from rclpy.qos import QoSProfile
+from rclpy.qos import ReliabilityPolicy
 
-from foreman.engine import ForemanEngine
-from foreman.types import ErrorSnapshot
 from foreman.types import ForemanSnapshot
-from foreman_msgs.msg import ForemanErrorState
 from foreman_msgs.msg import ForemanStatus
-
-
-def _to_error_msg(snapshot: ErrorSnapshot) -> ForemanErrorState:
-    msg = ForemanErrorState()
-    msg.is_error = snapshot.is_error
-    msg.category = snapshot.category
-    msg.message = snapshot.message
-    msg.components = list(snapshot.components or [])
-    return msg
-
-
-def _to_status_msg(snapshot: ForemanSnapshot) -> ForemanStatus:
-    msg = ForemanStatus()
-    msg.goal = snapshot.goal
-    msg.ready = snapshot.ready
-    msg.at_goal = snapshot.at_goal
-    msg.error = _to_error_msg(snapshot.error)
-    return msg
 
 
 class RosStatusPublisher:
     """Publish the current Foreman engine status as a ROS 2 topic."""
 
-    def __init__(
-        self,
-        node: Node,
-        engine: ForemanEngine,
-        publish_period: float = 0.1,
-    ):
-        self._node = node
-        self._engine = engine
+    def __init__(self, node: Node):
         self.logger_prefix = "Adapters.RosStatusPublisher:"
 
-        self._publisher = self._node.create_publisher(
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+        self._publisher = node.create_publisher(
             ForemanStatus,
-            'foreman/status',
-            10
+            '~/status',
+            qos_profile
         )
-        self._timer = self._node.create_timer(
-            publish_period,
-            self.publish_status,
-            callback_group=self._node.callback_group_timer
-        )
+        self._last_published = None
 
-        self._node.get_logger().info(
-            f"{self.logger_prefix} Topic /foreman/status is ready.")
+        node.get_logger().info(
+            f"{self.logger_prefix} Topic {self._publisher.topic_name} is ready.")
 
-    def publish_status(self):
-        """Publish one snapshot of the current Foreman status."""
-        self._publisher.publish(
-            _to_status_msg(self._engine.get_engine_snapshot())
-        )
+    def publish_status(self, snapshot: ForemanSnapshot):
+        """Publish the given Foreman status snapshot if it changed."""
+        msg = ForemanStatus()
+        msg.goal = snapshot.goal
+        msg.ready = snapshot.ready
+        msg.at_goal = snapshot.at_goal
+        msg.error.is_error = snapshot.error.is_error
+        msg.error.category = snapshot.error.category
+        msg.error.message = snapshot.error.message
+        msg.error.components = list(snapshot.error.components or [])
+
+        if msg == self._last_published:
+            return
+
+        self._last_published = msg
+        self._publisher.publish(msg)
