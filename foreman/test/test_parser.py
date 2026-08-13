@@ -24,6 +24,18 @@ def parsed_scenario(scenario_path):
     return parse_yaml_file(scenario_path)
 
 
+@pytest.fixture
+def autostart_scenario_path():
+    """Path to the scenario_autostart.yaml file."""
+    return Path(__file__).parent.parent / "config" / "scenario_autostart.yaml"
+
+
+@pytest.fixture
+def parsed_autostart_scenario(autostart_scenario_path):
+    """Parse the scenario_autostart.yaml file."""
+    return parse_yaml_file(autostart_scenario_path)
+
+
 class TestParsedScenario:
     """Tests for ParsedScenario structure."""
 
@@ -35,6 +47,19 @@ class TestParsedScenario:
 
     def test_metadata_empty(self, parsed_scenario):
         assert parsed_scenario.metadata == {}
+
+    def test_autostart_goal_state_defaults_empty(self, parsed_scenario):
+        assert parsed_scenario.autostart_goal_state == ""
+
+
+class TestAutostartScenario:
+    """Tests for a scenario configured to autostart into a goal state."""
+
+    def test_autostart_goal_state_is_running(self, parsed_autostart_scenario):
+        assert parsed_autostart_scenario.autostart_goal_state == "running"
+
+    def test_autostart_goal_state_is_a_declared_goal(self, parsed_autostart_scenario):
+        assert parsed_autostart_scenario.autostart_goal_state in parsed_autostart_scenario.goals
 
 
 class TestDependencyRules:

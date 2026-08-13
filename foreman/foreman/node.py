@@ -19,7 +19,7 @@ class ForemanNode(Node):
     """Glues the Foreman Engine and its adapters."""
 
     def __init__(self):
-        super().__init__('foreman_node')
+        super().__init__('foreman')
 
         self.foreman_state_lock = threading.Lock()
         # for error handling ,so we know what and when failed and who to blame
@@ -65,6 +65,13 @@ class ForemanNode(Node):
             engine=self.foreman_engine
         )
 
+        self.autostart_adapter = adapters.AutostartAdapter(
+            node=self,
+            engine=self.foreman_engine,
+            goal_name=self.foreman_config.autostart_goal_state,
+            autostart=bool(self.foreman_config.autostart_goal_state)
+        )
+
         # MAIN LOOP ================================================
 
         # RUN everything at 10HZ
@@ -77,21 +84,13 @@ class ForemanNode(Node):
         # TODO: Add pretty print of current state and read config?
         self.get_logger().info("Foreman Node initialized.")
 
-        # If available, start the datalayer adapter
-        datalayer_available = True if adapters.DatalayerAdapter else None
-        if datalayer_available:
-            self.datalayer_adapter = adapters.DatalayerAdapter(
-                ros_logger=self.get_logger(), engine=self.foreman_engine)
-            self.get_logger().info("Datalayer adapter initialized.")
-            datalayer_available = self.datalayer_adapter.start()
-
-        if not datalayer_available:
-            self.get_logger().info("Datalayer adapter not available.")
-            self.datalayer_adapter = None
         self.counter = 0
 
     def callback_main_loop(self):
         """Execute the main control loop."""
+        if bool(self.foreman_config.autostart_goal_state) and not self.autostart_adapter.is_done:
+            self.autostart_adapter.autostart()
+
         # do we have an active transition running?
         if self._service_call_active_future and self._service_call_active_future.done():
             try:
@@ -158,12 +157,6 @@ class ForemanNode(Node):
         """Safely stop adapters when shutting down node."""
         self.get_logger().info("Shutting down adapters...")
 
-        if self.datalayer_adapter:
-            try:
-                self.datalayer_adapter.stop()
-            except Exception as e:
-                self.get_logger().error(f"Failed to stop datalayer adapter: {e}")
-
         super().destroy_node()
 
 
@@ -173,7 +166,7 @@ def main(args=None):
     try:
         node = ForemanNode()
     except Exception as e:
-        print(f"[FATAL] [foreman_node]: Failed to initialize: {e}", file=sys.stderr)
+        print(f"[FATAL] [foreman]: Failed to initialize: {e}", file=sys.stderr)
         rclpy.shutdown()
         sys.exit(1)
 

@@ -28,6 +28,7 @@ class ParsedScenario:
     lifecycle_nodes: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     tracked_components: Set[str] = field(default_factory=set)
+    autostart_goal_state: str = ''
 
 
 def parse_state_string(state_str: str) -> LifecycleState:
@@ -95,6 +96,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     if data is None:
         raise ValueError("Empty YAML file")
 
+    autostart_goal_state = data.get('autostart_goal_state', '')
     hardware = data.get('hardware', [])
     lifecycle_nodes = data.get('lifecycle_nodes', [])
 
@@ -145,7 +147,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         )
 
     metadata = {}
-    known_keys = {'hardware',
+    known_keys = {'autostart_goal_state', 'hardware',
                   'lifecycle_nodes', 'controllers', 'goal_states'}
     for key, value in data.items():
         if key not in known_keys:
@@ -159,7 +161,14 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
         tracked_components.update(c.name for c in goal.controller_goals)
         tracked_components.update(c.name for c in goal.lifecycle_node_goals)
 
+    if autostart_goal_state and autostart_goal_state not in goals:
+        raise ValueError(
+            f"autostart_goal_state '{autostart_goal_state}' not found in goal_states. "
+            f"Available: {list(goals.keys())}"
+        )
+
     return ParsedScenario(
+        autostart_goal_state=autostart_goal_state,
         hardware=hardware,
         lifecycle_nodes=lifecycle_nodes,
         dependency_rules=dependency_rules,
