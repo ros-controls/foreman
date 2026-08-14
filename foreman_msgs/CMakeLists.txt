@@ -14,6 +14,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 set(msg_files
+  "msg/ComponentState.msg"
   "msg/ForemanErrorState.msg"
   "msg/ForemanStatus.msg"
 )

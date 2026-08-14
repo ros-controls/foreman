@@ -7,12 +7,23 @@ from rclpy.qos import HistoryPolicy
 from rclpy.qos import ReliabilityPolicy
 
 from foreman.adapters.ros_status_publisher import RosStatusPublisher
+from foreman.types import Component
+from foreman.types import ComponentType
 from foreman.types import ErrorSnapshot
 from foreman.types import ForemanErrorCategory
 from foreman.types import ForemanSnapshot
+from foreman.types import LifecycleState
 
 
-def _snapshot():
+def _component(name="joint_trajectory_controller", state=LifecycleState.INACTIVE):
+    return Component(
+        name=name,
+        component_type=ComponentType.CONTROLLER,
+        lifecycle_state=state
+    )
+
+
+def _snapshot(components=None):
     return ForemanSnapshot(
         goal="running",
         ready=True,
@@ -23,7 +34,7 @@ def _snapshot():
             message="boom",
             components=["joint_trajectory_controller"],
         ),
-        components=[]
+        components=components if components is not None else [_component()]
     )
 
 
@@ -60,7 +71,11 @@ class TestRosStatusPublisher(unittest.TestCase):
         self.assertTrue(published.error.is_error)
         self.assertEqual(published.error.category, ForemanErrorCategory.EXECUTION.value)
         self.assertEqual(published.error.message, "boom")
-        self.assertEqual(list(published.error.components), ["joint_trajectory_controller"])
+        self.assertEqual(
+            [c.name for c in published.error.components], ["joint_trajectory_controller"])
+        self.assertEqual(published.error.components[0].component_type,
+                         ComponentType.CONTROLLER.value)
+        self.assertEqual(published.error.components[0].lifecycle_state, "INACTIVE")
 
     def test_status_topic_is_transient_local(self):
         publisher = RosStatusPublisher(self.node)
@@ -105,6 +120,20 @@ class TestRosStatusPublisher(unittest.TestCase):
 
         published = publisher._publisher.publish.call_args[0][0]
         self.assertEqual(list(published.error.components), [])
+
+    def test_vanished_component_is_named_without_a_state(self):
+        # A component that dropped out of /activity is no longer observed, so
+        # only its name is known.
+        publisher = RosStatusPublisher(self.node)
+        publisher._publisher = MagicMock()
+
+        publisher.publish_status(_snapshot(components=[_component("something_else")]))
+
+        published = publisher._publisher.publish.call_args[0][0]
+        self.assertEqual(len(published.error.components), 1)
+        self.assertEqual(published.error.components[0].name, "joint_trajectory_controller")
+        self.assertEqual(published.error.components[0].component_type, "")
+        self.assertEqual(published.error.components[0].lifecycle_state, "")
 
 
 if __name__ == "__main__":
