@@ -6,4 +6,4 @@ bool is_error
 # UnexpectedStateError, PlannerError, or None.
 string category
 string message
-string[] components
+ComponentState[] components

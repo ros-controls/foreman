@@ -1,10 +1,12 @@
-# Drive the system to a named goal state.
-# Succeeds once the goal is reached, not when it is accepted.
+# Set the Foreman goal and wait until the system reaches it.
+# Succeeds once the goal is reached
 
 string goal
 ---
 bool success
+# Why the goal ended: reached, refused, preempted, cancelled or aborted.
 string message
+# Engine error state when the goal ended. Empty if lock is busy or engine rejected goal
 ForemanErrorState error
 ---
 bool at_goal

@@ -15,6 +15,7 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(action_msgs REQUIRED)
 
 set(msg_files
+  "msg/ComponentState.msg"
   "msg/ForemanErrorState.msg"
 )
 

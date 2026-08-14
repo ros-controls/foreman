@@ -8,13 +8,24 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 from foreman.adapters.ros_set_goal_action_server import _to_error_msg
 from foreman.adapters.ros_set_goal_action_server import RosSetGoalActionServer
+from foreman.types import Component
+from foreman.types import ComponentType
 from foreman.types import ErrorSnapshot
 from foreman.types import ForemanErrorCategory
 from foreman.types import ForemanResponse
 from foreman.types import ForemanSnapshot
+from foreman.types import LifecycleState
 
 
-def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None):
+def _component(name="ctrl_a", state=LifecycleState.INACTIVE):
+    return Component(
+        name=name,
+        component_type=ComponentType.CONTROLLER,
+        lifecycle_state=state
+    )
+
+
+def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None, components=None):
     """Build a ForemanSnapshot with a no-error default."""
     if error is None:
         error = ErrorSnapshot(
@@ -23,7 +34,13 @@ def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None):
             message="",
             components=[]
         )
-    return ForemanSnapshot(goal=goal, ready=ready, at_goal=at_goal, error=error, components=[])
+    return ForemanSnapshot(
+        goal=goal,
+        ready=ready,
+        at_goal=at_goal,
+        error=error,
+        components=components if components is not None else []
+    )
 
 
 def _error_snapshot(category=ForemanErrorCategory.EXECUTION, message="boom", components=None):
@@ -46,16 +63,40 @@ def _goal_handle(goal_name="force_ctrl"):
 
 class TestToErrorMsg(unittest.TestCase):
     def test_maps_every_field(self):
-        msg = _to_error_msg(_error_snapshot(components=["a", "b"]))
+        msg = _to_error_msg(_snapshot(error=_error_snapshot(components=["a", "b"])))
         self.assertTrue(msg.is_error)
         self.assertEqual(msg.category, ForemanErrorCategory.EXECUTION.value)
         self.assertEqual(msg.message, "boom")
-        self.assertEqual(list(msg.components), ["a", "b"])
+        self.assertEqual([c.name for c in msg.components], ["a", "b"])
 
     def test_none_components_become_empty_list(self):
-        msg = _to_error_msg(ErrorSnapshot(
-            is_error=False, category="None", message="", components=None))
+        msg = _to_error_msg(_snapshot(error=ErrorSnapshot(
+            is_error=False, category="None", message="", components=None)))
         self.assertEqual(list(msg.components), [])
+
+    def test_blamed_components_carry_their_observed_state(self):
+        msg = _to_error_msg(_snapshot(
+            error=_error_snapshot(components=["ctrl_a"]),
+            components=[_component("ctrl_a", LifecycleState.ACTIVE)]
+        ))
+
+        self.assertEqual(len(msg.components), 1)
+        self.assertEqual(msg.components[0].name, "ctrl_a")
+        self.assertEqual(msg.components[0].component_type, ComponentType.CONTROLLER.value)
+        self.assertEqual(msg.components[0].lifecycle_state, "ACTIVE")
+
+    def test_vanished_component_is_named_without_a_state(self):
+        # "Required components vanished from /activity" drops the component from
+        # the observed state, so only its name is known.
+        msg = _to_error_msg(_snapshot(
+            error=_error_snapshot(components=["gone"]),
+            components=[_component("still_here")]
+        ))
+
+        self.assertEqual(len(msg.components), 1)
+        self.assertEqual(msg.components[0].name, "gone")
+        self.assertEqual(msg.components[0].component_type, "")
+        self.assertEqual(msg.components[0].lifecycle_state, "")
 
 
 class TestRosSetGoalActionServer(unittest.TestCase):
@@ -104,6 +145,20 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("not found", result.message)
 
+    def test_rejected_goal_does_not_report_a_leftover_engine_error(self):
+        self.engine.request_goal.return_value = ForemanResponse(
+            False, "Goal 'nope' not found in configuration.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(
+            error=_error_snapshot(message="leftover failure")
+        )
+
+        result = self._server()._execute(_goal_handle("nope"))
+
+        self.assertFalse(result.success)
+        self.assertIn("not found", result.message)
+        self.assertFalse(result.error.is_error)
+        self.assertEqual(result.error.message, "")
+
     def test_busy_set_goal_execution_aborts_without_requesting_goal(self):
         self.engine.get_engine_snapshot.return_value = _snapshot()
         execution_lock = threading.Lock()
@@ -116,6 +171,21 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.engine.request_goal.assert_not_called()
         self.assertFalse(result.success)
         self.assertIn("already active", result.message)
+        execution_lock.release()
+
+    def test_busy_set_goal_execution_does_not_report_an_engine_error(self):
+        self.engine.get_engine_snapshot.return_value = _snapshot(
+            error=_error_snapshot(message="unrelated failure")
+        )
+        execution_lock = threading.Lock()
+        execution_lock.acquire()
+
+        result = self._server(execution_lock=execution_lock)._execute(_goal_handle())
+
+        self.assertFalse(result.success)
+        self.assertIn("already active", result.message)
+        self.assertFalse(result.error.is_error)
+        self.assertEqual(result.error.message, "")
         execution_lock.release()
 
     def test_succeeds_only_once_engine_reports_at_goal(self):
@@ -166,7 +236,10 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
         self.engine.get_engine_snapshot.side_effect = [
             _snapshot(at_goal=False),
-            _snapshot(error=_error_snapshot(message="Service rejected the transition.")),
+            _snapshot(
+                error=_error_snapshot(message="Service rejected the transition."),
+                components=[_component("ctrl_a", LifecycleState.INACTIVE)]
+            ),
         ]
         handle = _goal_handle()
 
@@ -178,7 +251,8 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertIn("Service rejected the transition.", result.message)
         self.assertTrue(result.error.is_error)
         self.assertEqual(result.error.category, ForemanErrorCategory.EXECUTION.value)
-        self.assertEqual(list(result.error.components), ["ctrl_a"])
+        self.assertEqual([c.name for c in result.error.components], ["ctrl_a"])
+        self.assertEqual(result.error.components[0].lifecycle_state, "INACTIVE")
 
     def test_cancel_stops_waiting(self):
         self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
@@ -193,7 +267,7 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         handle.abort.assert_not_called()
         self.assertFalse(result.success)
 
-    def test_preempted_goal_returns_without_terminal_call(self):
+    def test_inactive_goal_returns_without_terminal_call(self):
         self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
         self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=False)
         handle = _goal_handle()
@@ -205,6 +279,7 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         handle.abort.assert_not_called()
         handle.canceled.assert_not_called()
         self.assertFalse(result.success)
+        self.assertIn("no longer active", result.message)
 
     def test_already_at_goal_succeeds_without_feedback(self):
         self.engine.request_goal.return_value = ForemanResponse(

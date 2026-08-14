@@ -6,23 +6,41 @@ from rclpy.action import GoalResponse
 from rclpy.node import Node
 
 from foreman.engine import ForemanEngine
-from foreman.types import ErrorSnapshot
+from foreman.types import ForemanSnapshot
 from foreman_msgs.action import SetGoal
+from foreman_msgs.msg import ComponentState
 from foreman_msgs.msg import ForemanErrorState
 
 
-def _to_error_msg(snapshot: ErrorSnapshot) -> ForemanErrorState:
-    """Convert the engine's error snapshot into its ROS representation."""
+def _to_error_msg(snapshot: ForemanSnapshot) -> ForemanErrorState:
+    """
+    Convert the engine's error into its ROS representation.
+
+    The error names the blamed components; their observed states come from the
+    same snapshot, so a client sees what state each one was in. A component that
+    is no longer observed is still named, with its state left empty.
+    """
+    observed = {component.name: component for component in snapshot.components}
+
     msg = ForemanErrorState()
-    msg.is_error = snapshot.is_error
-    msg.category = snapshot.category
-    msg.message = snapshot.message
-    msg.components = list(snapshot.components or [])
+    msg.is_error = snapshot.error.is_error
+    msg.category = snapshot.error.category
+    msg.message = snapshot.error.message
+
+    for name in snapshot.error.components or []:
+        component_msg = ComponentState()
+        component_msg.name = name
+        component = observed.get(name)
+        if component:
+            component_msg.component_type = component.component_type.value
+            component_msg.lifecycle_state = component.lifecycle_state.name
+        msg.components.append(component_msg)
+
     return msg
 
 
 class RosSetGoalActionServer:
-    """Drive the system to a named goal with a ROS 2 action."""
+    """ROS 2 action interface to set the Foreman goal."""
 
     def __init__(
         self,
@@ -32,11 +50,10 @@ class RosSetGoalActionServer:
         *,
         execution_lock
     ):
-        self._node = node
         self._engine = engine
         self._poll_period = poll_period
         self._execution_lock = execution_lock
-        self.logger_prefix = "Adapters.RosSetGoalActionServer:"
+        self._logger = node.get_logger().get_child('action')
 
         self._action_server = ActionServer(
             node,
@@ -48,11 +65,10 @@ class RosSetGoalActionServer:
             callback_group=node.callback_group_subscriber
         )
 
-        self._node.get_logger().info(f"{self.logger_prefix} Action /foreman/set_goal is ready.")
+        self._logger.info("Action /foreman/set_goal is ready.")
 
     def _on_goal_request(self, goal_request) -> GoalResponse:
-        self._node.get_logger().info(
-            f"{self.logger_prefix} Received request for goal '{goal_request.goal}'")
+        self._logger.debug(f"Received request for goal '{goal_request.goal}'")
         return GoalResponse.ACCEPT
 
     def _on_cancel_request(self, goal_handle) -> CancelResponse:
@@ -67,46 +83,44 @@ class RosSetGoalActionServer:
         if not self._execution_lock.acquire(blocking=False):
             result.success = False
             result.message = "Another set_goal request is already active."
-            result.error = _to_error_msg(self._engine.get_engine_snapshot().error)
-            self._node.get_logger().warning(f"{self.logger_prefix} {result.message}")
+            self._logger.warning(result.message)
             goal_handle.abort()
             return result
 
         try:
             engine_response = self._engine.request_goal(goal_name)
             if not engine_response.success:
-                self._node.get_logger().warning(f"{engine_response.message}")
+                self._logger.warning(engine_response.message)
                 result.success = False
                 result.message = engine_response.message
-                result.error = _to_error_msg(self._engine.get_engine_snapshot().error)
                 goal_handle.abort()
                 return result
 
-            self._node.get_logger().info(f"{engine_response.message}")
+            self._logger.debug(engine_response.message)
 
             feedback = SetGoal.Feedback()
             while True:
                 if not goal_handle.is_active:
+                    # Reachable when the action server is destroyed on shutdown:
                     result.success = False
-                    result.message = f"Goal '{goal_name}' was preempted."
+                    result.message = f"Goal '{goal_name}' is no longer active."
                     return result
 
                 if goal_handle.is_cancel_requested:
                     result.success = False
                     result.message = f"Stopped waiting for goal '{goal_name}'."
-                    result.error = _to_error_msg(self._engine.get_engine_snapshot().error)
+                    result.error = _to_error_msg(self._engine.get_engine_snapshot())
                     goal_handle.canceled()
                     return result
 
                 snapshot = self._engine.get_engine_snapshot()
-                error_msg = _to_error_msg(snapshot.error)
+                error_msg = _to_error_msg(snapshot)
 
                 if snapshot.error.is_error:
                     result.success = False
                     result.message = f"[{snapshot.error.category}] {snapshot.error.message}"
                     result.error = error_msg
-                    self._node.get_logger().error(
-                        f"{self.logger_prefix} Goal '{goal_name}' aborted: {result.message}")
+                    self._logger.error(f"Goal '{goal_name}' aborted: {result.message}")
                     goal_handle.abort()
                     return result
 
@@ -114,7 +128,7 @@ class RosSetGoalActionServer:
                     result.success = True
                     result.message = f"Goal '{goal_name}' reached."
                     result.error = error_msg
-                    self._node.get_logger().info(f"{self.logger_prefix} {result.message}")
+                    self._logger.info(result.message)
                     goal_handle.succeed()
                     return result
 
