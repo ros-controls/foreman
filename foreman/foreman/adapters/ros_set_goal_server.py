@@ -15,9 +15,9 @@ class RosSetGoalServer:
         # If a service is processing, we reject new service requests.
         self._srv = self._node.create_service(
             SetGoal,
-            'foreman/set_goal',
+            "foreman/set_goal",
             self._handle_set_goal,
-            callback_group=self._node.callback_group_services
+            callback_group=self._node.callback_group_services,
         )
 
         print()
@@ -29,7 +29,8 @@ class RosSetGoalServer:
         goal_name = request.goal
         # TODO: demote some of these to DEBUG logs.
         self._node.get_logger().info(
-            f"{self.logger_prefix} Received request for goal '{goal_name}'")
+            f"{self.logger_prefix} Received request for goal '{goal_name}'"
+        )
 
         engine_response = self._engine.request_goal(goal_name)
 

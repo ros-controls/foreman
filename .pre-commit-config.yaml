@@ -5,18 +5,23 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-  - repo: https://github.com/PyCQA/isort
-    rev: 8.0.1
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.2
     hooks:
-      - id: isort
-        args: ["--profile", "google", "--line-length=99"]
-  - repo: https://github.com/hhatto/autopep8
-    rev: v2.3.2
-    hooks:
-      - id: autopep8
-        args: ["-i", "--max-line-length=99"]
+      - id: pyupgrade
+        args: [--py36-plus]
   - repo: https://github.com/PyCQA/pydocstyle
     rev: 6.3.0
     hooks:
       - id: pydocstyle
-        args: ["--convention=pep257", "--add-ignore=D100,D101,D102,D103,D104,D105,D106,D107"]
+        args: ["--ignore=D100,D101,D102,D103,D104,D105,D106,D107,D203,D212,D404"]
+  - repo: https://github.com/psf/black
+    rev: 26.5.1
+    hooks:
+      - id: black
+        args: ["--line-length=99"]
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        args: ["--extend-ignore=E501"]

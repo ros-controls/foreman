@@ -2,24 +2,21 @@ import sys
 import threading
 
 import rclpy
-from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 from foreman import adapters
 from foreman.engine import ForemanEngine
 from foreman.parser import parse_yaml_file
-from foreman.types import ComponentType
-from foreman.types import ForemanError
-from foreman.types import ForemanErrorCategory
+from foreman.types import ComponentType, ForemanError, ForemanErrorCategory
 
 
 class ForemanNode(Node):
     """Glues the Foreman Engine and its adapters."""
 
     def __init__(self):
-        super().__init__('foreman')
+        super().__init__("foreman")
 
         self.foreman_state_lock = threading.Lock()
         # for error handling ,so we know what and when failed and who to blame
@@ -45,28 +42,23 @@ class ForemanNode(Node):
             node=self,
             engine=self.foreman_engine,
             controller_manager_name=controller_manager_name,
-            lifecycle_nodes=self.foreman_config.lifecycle_nodes
+            lifecycle_nodes=self.foreman_config.lifecycle_nodes,
         )
         self.controller_manager_service_caller = adapters.ControllerManagerServiceCaller(
-            node=self,
-            controller_manager_name=controller_manager_name
+            node=self, controller_manager_name=controller_manager_name
         )
         self.lifecycle_node_service_caller = adapters.LifecycleNodeServiceCaller(
-            node=self,
-            lifecycle_nodes=self.foreman_config.lifecycle_nodes
+            node=self, lifecycle_nodes=self.foreman_config.lifecycle_nodes
         )
 
-        self.ros_set_goal_server = adapters.RosSetGoalServer(
-            node=self,
-            engine=self.foreman_engine
-        )
+        self.ros_set_goal_server = adapters.RosSetGoalServer(node=self, engine=self.foreman_engine)
         self.ros_status_publisher = adapters.RosStatusPublisher(node=self)
 
         self.autostart_adapter = adapters.AutostartAdapter(
             node=self,
             engine=self.foreman_engine,
             goal_name=self.foreman_config.autostart_goal_state,
-            autostart=bool(self.foreman_config.autostart_goal_state)
+            autostart=bool(self.foreman_config.autostart_goal_state),
         )
 
         # MAIN LOOP ================================================
@@ -74,9 +66,7 @@ class ForemanNode(Node):
         # RUN everything at 10HZ
         # TODO: Configure this?
         self.timer = self.create_timer(
-            0.1,
-            self.callback_main_loop,
-            callback_group=self.callback_group_timer
+            0.1, self.callback_main_loop, callback_group=self.callback_group_timer
         )
         # TODO: Add pretty print of current state and read config?
         self.get_logger().info("Foreman Node initialized.")
@@ -96,25 +86,36 @@ class ForemanNode(Node):
                 result = self._service_call_active_future.result()
 
                 # ControllerManager services return a field "ok" while LifecycleNode services return "success". :/
-                if self._active_transition.component.component_type == ComponentType.LIFECYCLE_NODE:
+                if (
+                    self._active_transition.component.component_type
+                    == ComponentType.LIFECYCLE_NODE
+                ):
                     ok = result.success
                 else:
                     ok = result.ok
 
                 if not ok:
-                    comp_name = self._active_transition.component.name if self._active_transition else "unknown"
+                    comp_name = (
+                        self._active_transition.component.name
+                        if self._active_transition
+                        else "unknown"
+                    )
                     fault = ForemanError(
                         category=ForemanErrorCategory.EXECUTION,
                         message="Service rejected the transition.",
-                        component_names=[comp_name]
+                        component_names=[comp_name],
                     )
                     self._log_and_abort_goal(fault)
             except Exception as e:
-                comp_name = self._active_transition.component.name if self._active_transition else "unknown"
+                comp_name = (
+                    self._active_transition.component.name
+                    if self._active_transition
+                    else "unknown"
+                )
                 fault = ForemanError(
                     category=ForemanErrorCategory.DELIVERY,
                     message=f"Service call exception: {str(e)}",
-                    component_names=[comp_name]
+                    component_names=[comp_name],
                 )
                 self._log_and_abort_goal(fault)
             finally:
@@ -133,16 +134,18 @@ class ForemanNode(Node):
         try:
             self._active_transition = command
             if command.component.component_type == ComponentType.LIFECYCLE_NODE:
-                self._service_call_active_future = self.lifecycle_node_service_caller.execute_transition(
-                    command)
+                self._service_call_active_future = (
+                    self.lifecycle_node_service_caller.execute_transition(command)
+                )
             else:
-                self._service_call_active_future = self.controller_manager_service_caller.execute_transition(
-                    command)
+                self._service_call_active_future = (
+                    self.controller_manager_service_caller.execute_transition(command)
+                )
         except Exception as e:
             fault = ForemanError(
                 category=ForemanErrorCategory.EXECUTION,
                 message=f"Failed to execute transition: {str(e)}",
-                component_names=[command.component.name]
+                component_names=[command.component.name],
             )
             self._log_and_abort_goal(fault)
             self._active_transition = None
@@ -150,7 +153,8 @@ class ForemanNode(Node):
     def _log_and_abort_goal(self, fault: ForemanError):
         self.foreman_engine.abort_goal(fault)
         self.get_logger().error(
-            f"[{fault.category.value}] {fault.message}. Failed components: {fault.component_names}")
+            f"[{fault.category.value}] {fault.message}. Failed components: {fault.component_names}"
+        )
 
     def destroy_node(self):
         """Safely stop adapters when shutting down node."""
@@ -183,5 +187,5 @@ def main(args=None):
             rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

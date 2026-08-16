@@ -1,19 +1,20 @@
 import threading
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from foreman.parser import ParsedScenario
 from foreman.planner import Planner
-from foreman.types import Component
-from foreman.types import ComponentType
-from foreman.types import ErrorSnapshot
-from foreman.types import ForemanError
-from foreman.types import ForemanErrorCategory
-from foreman.types import ForemanResponse
-from foreman.types import ForemanSnapshot
-from foreman.types import LifecycleState
-from foreman.types import SystemGoal
-from foreman.types import SystemState
-from foreman.types import SystemTransitionCommand
+from foreman.types import (
+    Component,
+    ErrorSnapshot,
+    ForemanError,
+    ForemanErrorCategory,
+    ForemanResponse,
+    ForemanSnapshot,
+    LifecycleState,
+    SystemGoal,
+    SystemState,
+    SystemTransitionCommand,
+)
 
 
 class ForemanEngine:
@@ -52,13 +53,15 @@ class ForemanEngine:
 
         with self._state_lock:
             if not self._is_ready:
-                return ForemanResponse(False, "Foreman not ready. Is /activity topic being published?")
+                return ForemanResponse(
+                    False, "Foreman not ready. Is /activity topic being published?"
+                )
 
             missing_components = self._locked_missing_goal_components(goal)
             if missing_components:
                 return ForemanResponse(
                     False,
-                    f"Cannot accept goal '{goal_name}'. Missing components in observed state: {missing_components}"
+                    f"Cannot accept goal '{goal_name}'. Missing components in observed state: {missing_components}",
                 )
 
             unsatisfiable = self._locked_check_unsatisfiable_dependencies(goal)
@@ -66,7 +69,7 @@ class ForemanEngine:
                 return ForemanResponse(
                     False,
                     f"Cannot accept goal '{goal_name}'. Unsatisfiable dependencies:\n"
-                    + "\n".join(f"  - {msg}" for msg in unsatisfiable)
+                    + "\n".join(f"  - {msg}" for msg in unsatisfiable),
                 )
 
             error_cleared_msg = "Error cleared on new goal. " if self._error_state else ""
@@ -122,9 +125,7 @@ class ForemanEngine:
             self._is_ready = True
 
             # In these cases, we just observe state
-            if (self._error_state or
-                not was_ready or
-                    not self._current_goal):
+            if self._error_state or not was_ready or not self._current_goal:
                 return ForemanResponse(True, "System state observed.")
 
             # otherwise, check for anomalies among components listed in yaml file
@@ -135,13 +136,17 @@ class ForemanEngine:
                 existing = previous_state.get(incoming.name)
                 if existing and incoming.lifecycle_state != existing.lifecycle_state:
                     expected = (
-                        self._last_issued_command and
-                        self._last_issued_command.component.name == incoming.name and
-                        self._last_issued_command.goal_state == incoming.lifecycle_state
+                        self._last_issued_command
+                        and self._last_issued_command.component.name == incoming.name
+                        and self._last_issued_command.goal_state == incoming.lifecycle_state
                     )
                     if not expected:
                         unexpected_changes.append(
-                            (incoming.name, existing.lifecycle_state.name, incoming.lifecycle_state.name)
+                            (
+                                incoming.name,
+                                existing.lifecycle_state.name,
+                                incoming.lifecycle_state.name,
+                            )
                         )
 
             # unexpected missing components
@@ -154,7 +159,8 @@ class ForemanEngine:
 
                 if missing_components:
                     error_msgs.append(
-                        f"Required components vanished from /activity: {missing_components}")
+                        f"Required components vanished from /activity: {missing_components}"
+                    )
                     error_components.extend(missing_components)
 
                 if unexpected_changes:
@@ -165,16 +171,14 @@ class ForemanEngine:
                 self._error_state = ForemanError(
                     category=ForemanErrorCategory.UNEXPECTED_STATE,
                     message="Aborting transition:\n  - " + "\n  - ".join(error_msgs),
-                    component_names=list(set(error_components))
+                    component_names=list(set(error_components)),
                 )
 
                 self._last_issued_command = None
                 self._locked_abort_transition()
 
                 return ForemanResponse(
-                    success=False,
-                    message="Unexpected system state.",
-                    error=self._error_state
+                    success=False, message="Unexpected system state.", error=self._error_state
                 )
 
             return ForemanResponse(True, "System state observed with no anomalies.")
@@ -197,11 +201,15 @@ class ForemanEngine:
                 at_goal=self._locked_is_at_goal(),
                 error=ErrorSnapshot(
                     is_error=self._error_state is not None,
-                    category=self._error_state.category.value if self._error_state else ForemanErrorCategory.NONE.value,
+                    category=(
+                        self._error_state.category.value
+                        if self._error_state
+                        else ForemanErrorCategory.NONE.value
+                    ),
                     message=self._error_state.message if self._error_state else "",
-                    components=self._error_state.component_names if self._error_state else []
+                    components=self._error_state.component_names if self._error_state else [],
                 ),
-                components=list(self._state.components.values())
+                components=list(self._state.components.values()),
             )
 
     def _locked_is_at_goal(self) -> bool:
@@ -225,7 +233,9 @@ class ForemanEngine:
         """
         missing = []
         all_component_goals = (
-            target_goal.hardware_goals + target_goal.controller_goals + target_goal.lifecycle_node_goals
+            target_goal.hardware_goals
+            + target_goal.controller_goals
+            + target_goal.lifecycle_node_goals
         )
 
         for component_goal in all_component_goals:
@@ -269,13 +279,22 @@ class ForemanEngine:
 
                 dependency_goal_state = goal_infrastructure_states.get(req.name)
                 dependency_current = self._state.components.get(req.name)
-                dependency_current_state = dependency_current.lifecycle_state if dependency_current else None
+                dependency_current_state = (
+                    dependency_current.lifecycle_state if dependency_current else None
+                )
 
-                satisfied_by_goal = dependency_goal_state is not None and dependency_goal_state >= required_state
-                satisfied_by_current = dependency_current_state is not None and dependency_current_state >= required_state
+                satisfied_by_goal = (
+                    dependency_goal_state is not None and dependency_goal_state >= required_state
+                )
+                satisfied_by_current = (
+                    dependency_current_state is not None
+                    and dependency_current_state >= required_state
+                )
 
                 if not satisfied_by_goal and not satisfied_by_current:
-                    state_str = dependency_current_state.name if dependency_current_state else "UNKNOWN"
+                    state_str = (
+                        dependency_current_state.name if dependency_current_state else "UNKNOWN"
+                    )
                     errors.append(
                         f"'{ctrl_goal.name}' requires '{req.name}' at {required_state.name}, "
                         f"but it is {state_str} and not targeted in this goal"

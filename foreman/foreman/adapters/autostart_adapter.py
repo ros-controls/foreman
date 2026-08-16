@@ -7,7 +7,9 @@ from foreman.types import LifecycleState
 class AutostartAdapter:
     """Adapter to transition automatically to a desired state after all desired components are loaded."""
 
-    STABLE_TICKS_REQUIRED = 50  # consecutive ticks with no state change before requesting transition
+    STABLE_TICKS_REQUIRED = (
+        50  # consecutive ticks with no state change before requesting transition
+    )
 
     def __init__(self, node: Node, engine: ForemanEngine, goal_name: str, autostart: bool = False):
         self._node = node
@@ -20,7 +22,7 @@ class AutostartAdapter:
 
     def autostart(self):
         if not self._autostart:
-            self._node.get_logger().info(f"Autostart parameter is set to false.")
+            self._node.get_logger().info("Autostart parameter is set to false.")
             return
 
         if self.transition_success and self.engine.get_engine_snapshot().error.is_error:
@@ -35,14 +37,18 @@ class AutostartAdapter:
         if not self.all_components_ready():
             not_ready = self._get_not_ready_components()
             self._node.get_logger().info(
-                f"Some components are not ready yet: {not_ready}. Waiting before requesting autostart...", throttle_duration_sec=2)
+                f"Some components are not ready yet: {not_ready}. Waiting before requesting autostart...",
+                throttle_duration_sec=2,
+            )
             self._stable_ticks = 0
             return
 
         if not self._is_state_stable():
             return
 
-        self._node.get_logger().info(f"All components stable and ready. Requesting goal transition.")
+        self._node.get_logger().info(
+            "All components stable and ready. Requesting goal transition."
+        )
         self.transition_success = self.send_goal_request()
 
     @property
@@ -64,7 +70,8 @@ class AutostartAdapter:
     def _is_state_stable(self) -> bool:
         """Return True once the system state has been unchanged for STABLE_TICKS_REQUIRED consecutive ticks."""
         current_states = {
-            c.name: c.lifecycle_state for c in self.engine.get_engine_snapshot().components}
+            c.name: c.lifecycle_state for c in self.engine.get_engine_snapshot().components
+        }
         if current_states != self._last_observed_states:
             self._last_observed_states = current_states
             self._stable_ticks = 0
@@ -77,10 +84,7 @@ class AutostartAdapter:
         snapshot = self.engine.get_engine_snapshot()
         observed = {c.name: c for c in snapshot.components}
         missing = [n for n in self.engine._config.tracked_components if n not in observed]
-        wrong_state = [
-            c.name for c in observed.values()
-            if c.lifecycle_state < desired_state
-        ]
+        wrong_state = [c.name for c in observed.values() if c.lifecycle_state < desired_state]
         return missing + wrong_state
 
     def all_components_ready(self, desired_state=LifecycleState.UNCONFIGURED):
@@ -88,8 +92,7 @@ class AutostartAdapter:
         snapshot = self.engine.get_engine_snapshot()
         observed = {c.name: c for c in snapshot.components}
 
-        all_unconfigured = (
-            all(name in observed for name in self.engine._config.tracked_components)
-            and all(c.lifecycle_state >= desired_state for c in observed.values())
-        )
+        all_unconfigured = all(
+            name in observed for name in self.engine._config.tracked_components
+        ) and all(c.lifecycle_state >= desired_state for c in observed.values())
         return all_unconfigured

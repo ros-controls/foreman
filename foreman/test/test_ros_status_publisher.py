@@ -2,25 +2,21 @@ import unittest
 from unittest.mock import MagicMock
 
 import rclpy
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import HistoryPolicy
-from rclpy.qos import ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, ReliabilityPolicy
 
 from foreman.adapters.ros_status_publisher import RosStatusPublisher
-from foreman.types import Component
-from foreman.types import ComponentType
-from foreman.types import ErrorSnapshot
-from foreman.types import ForemanErrorCategory
-from foreman.types import ForemanSnapshot
-from foreman.types import LifecycleState
+from foreman.types import (
+    Component,
+    ComponentType,
+    ErrorSnapshot,
+    ForemanErrorCategory,
+    ForemanSnapshot,
+    LifecycleState,
+)
 
 
 def _component(name="joint_trajectory_controller", state=LifecycleState.INACTIVE):
-    return Component(
-        name=name,
-        component_type=ComponentType.CONTROLLER,
-        lifecycle_state=state
-    )
+    return Component(name=name, component_type=ComponentType.CONTROLLER, lifecycle_state=state)
 
 
 def _snapshot(components=None):
@@ -34,7 +30,7 @@ def _snapshot(components=None):
             message="boom",
             components=["joint_trajectory_controller"],
         ),
-        components=components if components is not None else [_component()]
+        components=components if components is not None else [_component()],
     )
 
 
@@ -72,9 +68,11 @@ class TestRosStatusPublisher(unittest.TestCase):
         self.assertEqual(published.error.category, ForemanErrorCategory.EXECUTION.value)
         self.assertEqual(published.error.message, "boom")
         self.assertEqual(
-            [c.name for c in published.error.components], ["joint_trajectory_controller"])
-        self.assertEqual(published.error.components[0].component_type,
-                         ComponentType.CONTROLLER.value)
+            [c.name for c in published.error.components], ["joint_trajectory_controller"]
+        )
+        self.assertEqual(
+            published.error.components[0].component_type, ComponentType.CONTROLLER.value
+        )
         self.assertEqual(published.error.components[0].lifecycle_state, "INACTIVE")
 
     def test_status_topic_is_transient_local(self):

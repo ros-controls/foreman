@@ -1,12 +1,8 @@
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import HistoryPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from foreman.types import ForemanSnapshot
-from foreman_msgs.msg import ComponentState
-from foreman_msgs.msg import ForemanStatus
+from foreman_msgs.msg import ComponentState, ForemanStatus
 
 
 class RosStatusPublisher:
@@ -19,17 +15,14 @@ class RosStatusPublisher:
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=1,
         )
-        self._publisher = node.create_publisher(
-            ForemanStatus,
-            '~/status',
-            qos_profile
-        )
+        self._publisher = node.create_publisher(ForemanStatus, "~/status", qos_profile)
         self._last_published = None
 
         node.get_logger().info(
-            f"{self.logger_prefix} Topic {self._publisher.topic_name} is ready.")
+            f"{self.logger_prefix} Topic {self._publisher.topic_name} is ready."
+        )
 
     def publish_status(self, snapshot: ForemanSnapshot):
         """Publish the given Foreman status snapshot if it changed."""
