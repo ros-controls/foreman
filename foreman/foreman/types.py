@@ -170,3 +170,5 @@ class ForemanSnapshot:
     at_goal: bool
     error: ErrorSnapshot
     components: List[Component]
+    all_goals: List[str]
+    available_goals: List[str]

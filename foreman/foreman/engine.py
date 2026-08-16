@@ -210,6 +210,16 @@ class ForemanEngine:
                     components=self._error_state.component_names if self._error_state else [],
                 ),
                 components=list(self._state.components.values()),
+                all_goals=list(self._config.goals.keys()),
+                available_goals=(
+                    [
+                        name
+                        for name, goal in self._config.goals.items()
+                        if self._locked_is_goal_available(goal)
+                    ]
+                    if self._is_ready
+                    else []
+                ),
             )
 
     def _locked_is_at_goal(self) -> bool:
@@ -242,6 +252,16 @@ class ForemanEngine:
             if component_goal.name not in self._state.components:
                 missing.append(component_goal.name)
         return missing
+
+    def _locked_is_goal_available(self, goal: SystemGoal) -> bool:
+        """
+        Check if a goal is currently achievable given observed component state.
+
+        MUST be called while holding self._state_lock!
+        """
+        return not self._locked_missing_goal_components(
+            goal
+        ) and not self._locked_check_unsatisfiable_dependencies(goal)
 
     def _locked_check_unsatisfiable_dependencies(self, goal: SystemGoal) -> List[str]:
         """

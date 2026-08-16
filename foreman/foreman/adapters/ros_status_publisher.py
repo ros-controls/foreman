@@ -48,6 +48,9 @@ class RosStatusPublisher:
                 component_msg.lifecycle_state = component.lifecycle_state.name
             msg.error.components.append(component_msg)
 
+        msg.all_goals = list(snapshot.all_goals)
+        msg.available_goals = list(snapshot.available_goals)
+
         if msg == self._last_published:
             return
 

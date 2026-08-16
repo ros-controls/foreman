@@ -295,3 +295,43 @@ def test_goal_accepted_when_dependency_already_satisfied(dependency_config):
 
     response = engine.request_goal("active")
     assert response.success is True
+
+
+# --- Snapshot Goal Availability Tests ---
+
+
+def test_snapshot_available_goals_empty_before_ready(minimal_foreman_config):
+    """Snapshot reports no available goals before the first observed state."""
+    lock = threading.Lock()
+    engine = ForemanEngine(minimal_foreman_config, lock)
+
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.all_goals == ["active_goal"]
+    assert snapshot.available_goals == []
+
+
+def test_snapshot_available_goals_reflects_dependency_satisfaction(dependency_config):
+    """Available goals narrow to what's achievable, e.g. after a tool change."""
+    lock = threading.Lock()
+    engine = ForemanEngine(dependency_config, lock)
+
+    # robot_manager not yet active: "active" is unsatisfiable, "active_full" is not.
+    engine.set_system_state(
+        [
+            Component("gripper", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.INACTIVE),
+        ]
+    )
+    snapshot = engine.get_engine_snapshot()
+    assert set(snapshot.all_goals) == {"active", "active_full"}
+    assert snapshot.available_goals == ["active_full"]
+
+    # robot_manager now active (e.g. after a tool change): "active" becomes achievable too.
+    engine.set_system_state(
+        [
+            Component("gripper", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE),
+        ]
+    )
+    snapshot = engine.get_engine_snapshot()
+    assert set(snapshot.available_goals) == {"active", "active_full"}
