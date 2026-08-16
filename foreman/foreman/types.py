@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from dataclasses import field
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -12,7 +11,7 @@ class ForemanParameters:
     """Holds resolved Foreman parameters."""
 
     config_path: Path
-    controller_manager: str = 'controller_manager'
+    controller_manager: str = "controller_manager"
     # later we can add or other parameters
     # timeout: float = 5.0
 
@@ -20,10 +19,10 @@ class ForemanParameters:
 class ForemanErrorCategory(Enum):
     """Categories of domain errors the system can encounter."""
 
-    TRANSPORT = "TransportError"                # ROS service timeout, network issue
-    EXECUTION = "ExecutionError"              # controller_manager rejected the command
-    UNEXPECTED_STATE = "UnexpectedStateError"   # hardware crashed unprompted
-    PLANNER = "PlannerError"              # planner disallowed transitions, deadlock in planning
+    TRANSPORT = "TransportError"  # ROS service timeout, network issue
+    EXECUTION = "ExecutionError"  # controller_manager rejected the command
+    UNEXPECTED_STATE = "UnexpectedStateError"  # hardware crashed unprompted
+    PLANNER = "PlannerError"  # planner disallowed transitions, deadlock in planning
     NONE = "None"
 
 
@@ -46,9 +45,9 @@ class ForemanResponse:
 
 
 class ComponentType(Enum):
-    HARDWARE = 'hardware'
-    CONTROLLER = 'controller'
-    LIFECYCLE_NODE = 'lifecycle_node'
+    HARDWARE = "hardware"
+    CONTROLLER = "controller"
+    LIFECYCLE_NODE = "lifecycle_node"
 
 
 class LifecycleState(Enum):
@@ -63,12 +62,12 @@ class LifecycleState(Enum):
     ACTIVE = State.PRIMARY_STATE_ACTIVE
     FINALIZED = State.PRIMARY_STATE_FINALIZED
 
-    def __ge__(self, other: 'LifecycleState') -> bool:
+    def __ge__(self, other: "LifecycleState") -> bool:
         if isinstance(other, LifecycleState):
             return self.value >= other.value
         return NotImplemented
 
-    def __lt__(self, other: 'LifecycleState') -> bool:
+    def __lt__(self, other: "LifecycleState") -> bool:
         if isinstance(other, LifecycleState):
             return self.value < other.value
         return NotImplemented
@@ -76,15 +75,10 @@ class LifecycleState(Enum):
     @property
     def ros_state(self) -> State:
         """Generate the ROS 2 message object."""
-        labels = {
-            1: 'unconfigured',
-            2: 'inactive',
-            3: 'active',
-            4: 'finalized'
-        }
-        return State(id=self.value, label=labels.get(self.value, 'unknown'))
+        labels = {1: "unconfigured", 2: "inactive", 3: "active", 4: "finalized"}
+        return State(id=self.value, label=labels.get(self.value, "unknown"))
 
-    def step_towards(self, target: 'LifecycleState') -> Optional['LifecycleState']:
+    def step_towards(self, target: "LifecycleState") -> Optional["LifecycleState"]:
         """Calculate 1 step forward or backward in the sequence."""
         if self == target:
             return None
@@ -93,7 +87,7 @@ class LifecycleState(Enum):
             LifecycleState.UNCONFIGURED,
             LifecycleState.INACTIVE,
             LifecycleState.ACTIVE,
-            LifecycleState.FINALIZED
+            LifecycleState.FINALIZED,
         ]
         index_current = sequence.index(self)
         index_target = sequence.index(target)
@@ -156,6 +150,7 @@ class SystemTransitionCommand:
     def __repr__(self):
         c_type = self.component.component_type.value
         return f"TransitionCommand({c_type} '{self.component.name}' -> {self.goal_state.name})"
+
 
 # System snapshot, mimics flatbuffer schema
 

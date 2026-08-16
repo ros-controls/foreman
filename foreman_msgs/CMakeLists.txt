@@ -19,6 +19,12 @@ set(msg_files
   "msg/ForemanErrorState.msg"
 )
 
+set(msg_files
+  "msg/ComponentState.msg"
+  "msg/ForemanErrorState.msg"
+  "msg/ForemanStatus.msg"
+)
+
 set(srv_files
   "srv/SetGoal.srv"
 )

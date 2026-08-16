@@ -3,18 +3,12 @@ from typing import Dict, List
 from controller_manager_msgs.msg import ControllerManagerActivity
 from lifecycle_msgs.msg import TransitionEvent
 from lifecycle_msgs.srv import GetState
-from rclpy.event_handler import QoSSubscriptionMatchedInfo
-from rclpy.event_handler import SubscriptionEventCallbacks
+from rclpy.event_handler import QoSSubscriptionMatchedInfo, SubscriptionEventCallbacks
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy
-from rclpy.qos import HistoryPolicy
-from rclpy.qos import QoSProfile
-from rclpy.qos import ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from foreman.engine import ForemanEngine
-from foreman.types import Component
-from foreman.types import ComponentType
-from foreman.types import LifecycleState
+from foreman.types import Component, ComponentType, LifecycleState
 
 
 class ComponentStateMonitor:
@@ -51,14 +45,14 @@ class ComponentStateMonitor:
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             history=HistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=1,
         )
         self._subscription = self._node.create_subscription(
             ControllerManagerActivity,
-            f'/{controller_manager_name}/activity',
+            f"/{controller_manager_name}/activity",
             self._activity_callback,
             qos_profile,
-            callback_group=self._node.callback_group_subscriber
+            callback_group=self._node.callback_group_subscriber,
         )
         self._node.get_logger().info(
             f"{self._logger_prefix} Subscribed to /{controller_manager_name}/activity"
@@ -70,8 +64,8 @@ class ComponentStateMonitor:
         for lc_node_name in lifecycle_nodes:
             self._lc_node_get_state_clients[lc_node_name] = self._node.create_client(
                 GetState,
-                f'/{lc_node_name}/get_state',
-                callback_group=self._node.callback_group_services
+                f"/{lc_node_name}/get_state",
+                callback_group=self._node.callback_group_services,
             )
 
             # this matched event on transition_event/ topic handles both
@@ -83,12 +77,13 @@ class ComponentStateMonitor:
             )
             self._node.create_subscription(
                 TransitionEvent,
-                f'/{lc_node_name}/transition_event',
+                f"/{lc_node_name}/transition_event",
                 callback=lambda msg, n=lc_node_name: self._lifecycle_transition_event_callback(
-                    n, msg),
+                    n, msg
+                ),
                 qos_profile=10,
                 event_callbacks=event_callbacks,
-                callback_group=self._node.callback_group_subscriber
+                callback_group=self._node.callback_group_subscriber,
             )
 
         if lifecycle_nodes:
@@ -107,7 +102,7 @@ class ComponentStateMonitor:
                 components[hw_msg.name] = Component(
                     name=hw_msg.name,
                     component_type=ComponentType.HARDWARE,
-                    lifecycle_state=LifecycleState(hw_msg.state.id)
+                    lifecycle_state=LifecycleState(hw_msg.state.id),
                 )
             except ValueError:
                 continue
@@ -117,7 +112,7 @@ class ComponentStateMonitor:
                 components[ctrl_msg.name] = Component(
                     name=ctrl_msg.name,
                     component_type=ComponentType.CONTROLLER,
-                    lifecycle_state=LifecycleState(ctrl_msg.state.id)
+                    lifecycle_state=LifecycleState(ctrl_msg.state.id),
                 )
             except ValueError:
                 continue
@@ -138,7 +133,7 @@ class ComponentStateMonitor:
             self._lc_components[name] = Component(
                 name=name,
                 component_type=ComponentType.LIFECYCLE_NODE,
-                lifecycle_state=LifecycleState.FINALIZED
+                lifecycle_state=LifecycleState.FINALIZED,
             )
             self._node.get_logger().warning(
                 f"{self._logger_prefix} Lifecycle node '{name}' disconnected."
@@ -157,9 +152,7 @@ class ComponentStateMonitor:
             response = future.result()
             state = LifecycleState(response.current_state.id)
             self._lc_components[name] = Component(
-                name=name,
-                component_type=ComponentType.LIFECYCLE_NODE,
-                lifecycle_state=state
+                name=name, component_type=ComponentType.LIFECYCLE_NODE, lifecycle_state=state
             )
             self._node.get_logger().info(
                 f"{self._logger_prefix} Lifecycle node '{name}' discovered. State: {state.name}"
@@ -176,9 +169,7 @@ class ComponentStateMonitor:
         try:
             new_state = LifecycleState(msg.goal_state.id)
             self._lc_components[name] = Component(
-                name=name,
-                component_type=ComponentType.LIFECYCLE_NODE,
-                lifecycle_state=new_state
+                name=name, component_type=ComponentType.LIFECYCLE_NODE, lifecycle_state=new_state
             )
             self._push_merged_state()
         except ValueError:
@@ -193,7 +184,8 @@ class ComponentStateMonitor:
 
         if not was_ready and self._engine.is_ready:
             self._node.get_logger().info(
-                f"{self._logger_prefix} Foreman is READY. Fresh state received.")
+                f"{self._logger_prefix} Foreman is READY. Fresh state received."
+            )
 
         if not response.success and response.error:
             self._node.get_logger().error(

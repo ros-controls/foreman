@@ -5,10 +5,7 @@ import rclpy
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 from foreman.adapters.controller_manager_service_caller import ControllerManagerServiceCaller
-from foreman.types import Component
-from foreman.types import ComponentType
-from foreman.types import LifecycleState
-from foreman.types import SystemTransitionCommand
+from foreman.types import Component, ComponentType, LifecycleState, SystemTransitionCommand
 
 
 class TestControllerManagerServiceCaller(unittest.TestCase):
@@ -36,7 +33,8 @@ class TestControllerManagerServiceCaller(unittest.TestCase):
         caller._client_switch_controller = MagicMock()
         cmd = SystemTransitionCommand(
             Component("ctrl_a", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
-            LifecycleState.ACTIVE)
+            LifecycleState.ACTIVE,
+        )
         caller.execute_transition(cmd)
         sent = caller._client_switch_controller.call_async.call_args[0][0]
         self.assertEqual(list(sent.activate_controllers), ["ctrl_a"])
@@ -47,7 +45,8 @@ class TestControllerManagerServiceCaller(unittest.TestCase):
         caller._client_switch_controller = MagicMock()
         cmd = SystemTransitionCommand(
             Component("ctrl_a", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
-            LifecycleState.INACTIVE)
+            LifecycleState.INACTIVE,
+        )
         caller.execute_transition(cmd)
         sent = caller._client_switch_controller.call_async.call_args[0][0]
         self.assertEqual(list(sent.deactivate_controllers), ["ctrl_a"])
@@ -57,12 +56,13 @@ class TestControllerManagerServiceCaller(unittest.TestCase):
         caller._client_set_hardware_component_state = MagicMock()
         cmd = SystemTransitionCommand(
             Component("RRBot", ComponentType.HARDWARE, LifecycleState.INACTIVE),
-            LifecycleState.ACTIVE)
+            LifecycleState.ACTIVE,
+        )
         caller.execute_transition(cmd)
         sent = caller._client_set_hardware_component_state.call_async.call_args[0][0]
         self.assertEqual(sent.name, "RRBot")
         self.assertEqual(sent.target_state.id, LifecycleState.ACTIVE.value)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

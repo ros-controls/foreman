@@ -5,8 +5,7 @@ from lifecycle_msgs.srv import ChangeState
 from rclpy.node import Node
 from rclpy.task import Future
 
-from foreman.types import LifecycleState
-from foreman.types import SystemTransitionCommand
+from foreman.types import LifecycleState, SystemTransitionCommand
 
 # maps (current_state, goal_state) to the lifecycle transition ID
 _TRANSITION_MAP = {
@@ -30,9 +29,7 @@ class LifecycleNodeServiceCaller:
 
         for lc_name in lifecycle_nodes:
             client = self._node.create_client(
-                ChangeState,
-                f'/{lc_name}/change_state',
-                callback_group=group
+                ChangeState, f"/{lc_name}/change_state", callback_group=group
             )
             self._clients[lc_name] = client
 
@@ -52,9 +49,7 @@ class LifecycleNodeServiceCaller:
             raise ValueError(f"No lifecycle client for node '{name}'")
 
         if not client.service_is_ready():
-            raise RuntimeError(
-                f"Service /{name}/change_state not ready. Is '{name}' running?"
-            )
+            raise RuntimeError(f"Service /{name}/change_state not ready. Is '{name}' running?")
 
         transition_id = _TRANSITION_MAP.get((current, goal))
         if transition_id is None:
@@ -62,9 +57,7 @@ class LifecycleNodeServiceCaller:
                 f"No valid lifecycle transition from {current.name} to {goal.name} for '{name}'"
             )
 
-        self._node.get_logger().info(
-            f"{self.logger_prefix} {name} -> {goal.name}"
-        )
+        self._node.get_logger().info(f"{self.logger_prefix} {name} -> {goal.name}")
 
         req = ChangeState.Request()
         req.transition.id = transition_id

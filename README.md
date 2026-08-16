@@ -83,4 +83,3 @@ Check `node.py` how we glue it all up into a ros executable and run it.
     - `ControllerManagerServiceCaller` (outbound): Calls `controller_manager` services.
     - `LifecycleNodeServiceCaller` (outbound): Calls `/node/change_state` for lifecycle node transitions.
     - `RosSetGoalServer` (inbound): Exposes `/foreman/set_goal` service.
-    - `DatalayerAdapter` (outbound): ctrlX Datalayer integration (optional, to be added).

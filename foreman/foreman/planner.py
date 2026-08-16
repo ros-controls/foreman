@@ -1,12 +1,14 @@
 from typing import List, Optional
 
-from foreman.types import Component
-from foreman.types import ComponentType
-from foreman.types import ControllerDependencyRule
-from foreman.types import LifecycleState
-from foreman.types import SystemGoal
-from foreman.types import SystemState
-from foreman.types import SystemTransitionCommand
+from foreman.types import (
+    Component,
+    ComponentType,
+    ControllerDependencyRule,
+    LifecycleState,
+    SystemGoal,
+    SystemState,
+    SystemTransitionCommand,
+)
 
 
 class Planner:
@@ -43,17 +45,18 @@ class Planner:
 
             if not infra_component:
                 infra_component = Component(
-                    infra_goal.name,
-                    infra_goal.component_type,
-                    LifecycleState.UNCONFIGURED
+                    infra_goal.name, infra_goal.component_type, LifecycleState.UNCONFIGURED
                 )
 
             next_state = infra_component.lifecycle_state.step_towards(infra_goal.lifecycle_state)
             if next_state:
                 if next_state < infra_component.lifecycle_state:
-                    if not self._can_hardware_step_down(infra_component.name, next_state, current_state):
+                    if not self._can_hardware_step_down(
+                        infra_component.name, next_state, current_state
+                    ):
                         cmds_hw_step_down.append(
-                            SystemTransitionCommand(infra_component, next_state))
+                            SystemTransitionCommand(infra_component, next_state)
+                        )
 
                 cmds_hw_step_up.append(SystemTransitionCommand(infra_component, next_state))
 
@@ -63,35 +66,46 @@ class Planner:
 
             if not controller_component:
                 controller_component = Component(
-                    controller_goal.name,
-                    ComponentType.CONTROLLER,
-                    LifecycleState.UNCONFIGURED
+                    controller_goal.name, ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED
                 )
 
             next_state = controller_component.lifecycle_state.step_towards(
-                controller_goal.lifecycle_state)
+                controller_goal.lifecycle_state
+            )
 
             if next_state:
                 current = controller_component.lifecycle_state
 
                 if next_state > current:
                     # Guard activation AND configuration against hardware states
-                    if not self._can_controller_step_up(controller_goal.name, next_state, current_state):
+                    if not self._can_controller_step_up(
+                        controller_goal.name, next_state, current_state
+                    ):
                         continue
 
                 # Categorize into the appropriate phase
                 if current == LifecycleState.ACTIVE and next_state == LifecycleState.INACTIVE:
                     cmds_ctrl_deactivate.append(
-                        SystemTransitionCommand(controller_component, next_state))
+                        SystemTransitionCommand(controller_component, next_state)
+                    )
                 elif current == LifecycleState.INACTIVE and next_state == LifecycleState.ACTIVE:
-                    cmds_ctrl_activate.append(SystemTransitionCommand(
-                        controller_component, next_state))
-                elif current == LifecycleState.UNCONFIGURED and next_state == LifecycleState.INACTIVE:
-                    cmds_ctrl_config.append(SystemTransitionCommand(
-                        controller_component, next_state))
-                elif current == LifecycleState.INACTIVE and next_state == LifecycleState.UNCONFIGURED:
-                    cmds_ctrl_cleanup.append(SystemTransitionCommand(
-                        controller_component, next_state))
+                    cmds_ctrl_activate.append(
+                        SystemTransitionCommand(controller_component, next_state)
+                    )
+                elif (
+                    current == LifecycleState.UNCONFIGURED
+                    and next_state == LifecycleState.INACTIVE
+                ):
+                    cmds_ctrl_config.append(
+                        SystemTransitionCommand(controller_component, next_state)
+                    )
+                elif (
+                    current == LifecycleState.INACTIVE
+                    and next_state == LifecycleState.UNCONFIGURED
+                ):
+                    cmds_ctrl_cleanup.append(
+                        SystemTransitionCommand(controller_component, next_state)
+                    )
 
         # Strict order for issuing next command
         # C deactivate > HW Down > HW Up > C cleanup > C config > C activate
@@ -108,7 +122,9 @@ class Planner:
         if cmds_ctrl_activate:
             return cmds_ctrl_activate[0]
 
-    def _can_controller_step_up(self, ctrl_name: str, next_ctrl_state: LifecycleState, current_state: SystemState) -> bool:
+    def _can_controller_step_up(
+        self, ctrl_name: str, next_ctrl_state: LifecycleState, current_state: SystemState
+    ) -> bool:
         """Check if hardware dependencies are met for configuring or activating a controller."""
         rule = self.rules.get(ctrl_name)
         if not rule:
