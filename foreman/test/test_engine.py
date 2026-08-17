@@ -298,8 +298,6 @@ def test_goal_accepted_when_dependency_already_satisfied(dependency_config):
 
 
 # --- Snapshot Goal Availability Tests ---
-
-
 def test_snapshot_available_goals_empty_before_ready(minimal_foreman_config):
     """Snapshot reports no available goals before the first observed state."""
     lock = threading.Lock()
