@@ -58,14 +58,14 @@ class RosSetGoalActionServer:
         self._action_server = ActionServer(
             node,
             SetGoal,
-            'foreman/set_goal',
+            '~/set_goal',
             execute_callback=self._execute,
             goal_callback=self._on_goal_request,
             cancel_callback=self._on_cancel_request,
             callback_group=node.callback_group_subscriber
         )
 
-        self._logger.info("Action /foreman/set_goal is ready.")
+        self._logger.info("Action set_goal is ready.")
 
     def _on_goal_request(self, goal_request) -> GoalResponse:
         self._logger.debug(f"Received request for goal '{goal_request.goal}'")

@@ -59,11 +59,12 @@ class TestRosSetGoalServer(unittest.TestCase):
         server._poll_period = 0.0
         return server
 
-    def test_service_is_advertised_as_foreman_set_goal(self):
+    def test_service_is_advertised_in_node_namespace(self):
         self._server()
+        expected = f"/{self.node.get_name()}/set_goal"
         advertised = dict(self.node.get_service_names_and_types())
-        self.assertIn("/foreman/set_goal", advertised)
-        self.assertEqual(advertised["/foreman/set_goal"], ["foreman_msgs/srv/SetGoal"])
+        self.assertIn(expected, advertised)
+        self.assertEqual(advertised[expected], ["foreman_msgs/srv/SetGoal"])
 
     def test_service_uses_reentrant_callback_group(self):
         self.assertIsInstance(self._server()._callback_group, ReentrantCallbackGroup)

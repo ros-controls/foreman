@@ -126,11 +126,12 @@ class TestRosSetGoalActionServer(unittest.TestCase):
             execution_lock=execution_lock
         )
 
-    def test_action_is_advertised_as_foreman_set_goal(self):
+    def test_action_is_advertised_in_node_namespace(self):
         self._server()
+        expected = f"/{self.node.get_name()}/set_goal"
         advertised = dict(get_action_names_and_types(node=self.node))
-        self.assertIn("/foreman/set_goal", advertised)
-        self.assertEqual(advertised["/foreman/set_goal"], ["foreman_msgs/action/SetGoal"])
+        self.assertIn(expected, advertised)
+        self.assertEqual(advertised[expected], ["foreman_msgs/action/SetGoal"])
 
     def test_rejected_goal_aborts_without_waiting(self):
         self.engine.request_goal.return_value = ForemanResponse(

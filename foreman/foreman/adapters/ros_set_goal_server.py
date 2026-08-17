@@ -21,14 +21,14 @@ class RosSetGoalServer:
 
         self._srv = self._node.create_service(
             SetGoal,
-            "foreman/set_goal",
+            "~/set_goal",
             self._handle_set_goal,
             callback_group=self._callback_group
         )
 
         print()
 
-        self._node.get_logger().info(f"{self.logger_prefix} Service /foreman/set_goal is ready.")
+        self._node.get_logger().info(f"{self.logger_prefix} Service set_goal is ready.")
 
     def _handle_set_goal(self, request, response):
         """Set the target system state."""
