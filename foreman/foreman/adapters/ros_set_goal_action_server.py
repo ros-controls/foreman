@@ -48,6 +48,7 @@ class RosSetGoalActionServer:
         self._engine = engine
         self._poll_period = poll_period
         self._execution_lock = execution_lock
+        self._shutting_down = False
         self._logger = node.get_logger().get_child("action")
 
         self._action_server = ActionServer(
@@ -70,6 +71,10 @@ class RosSetGoalActionServer:
         """Cancel waiting without rolling the system back."""
         del goal_handle
         return CancelResponse.ACCEPT
+
+    def request_shutdown(self):
+        """Stop waiting for a goal, so a running goal does not outlive the node."""
+        self._shutting_down = True
 
     def _execute(self, goal_handle):
         goal_name = goal_handle.request.goal
@@ -95,17 +100,18 @@ class RosSetGoalActionServer:
 
             feedback = SetGoal.Feedback()
             while True:
-                if not goal_handle.is_active:
-                    # Reachable when the action server is destroyed on shutdown:
-                    result.success = False
-                    result.message = f"Goal '{goal_name}' is no longer active."
-                    return result
-
-                if goal_handle.is_cancel_requested:
+                if (
+                    not goal_handle.is_active
+                    or goal_handle.is_cancel_requested
+                    or self._shutting_down
+                ):
                     result.success = False
                     result.message = f"Stopped waiting for goal '{goal_name}'."
                     result.error = _to_error_msg(self._engine.get_engine_snapshot())
-                    goal_handle.canceled()
+
+                    if goal_handle.is_cancel_requested:
+                        goal_handle.canceled()
+
                     return result
 
                 snapshot = self._engine.get_engine_snapshot()

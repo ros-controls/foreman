@@ -170,6 +170,9 @@ class ForemanNode(Node):
         """Safely stop adapters when shutting down node."""
         self.get_logger().info("Shutting down adapters...")
 
+        self.ros_set_goal_action_server.request_shutdown()
+        self.ros_set_goal_server.request_shutdown()
+
         super().destroy_node()
 
 

@@ -59,6 +59,18 @@ class TestRosSetGoalServer(unittest.TestCase):
         self.assertIn(expected, advertised)
         self.assertEqual(advertised[expected], ["foreman_msgs/srv/SetGoal"])
 
+    def test_shutdown_stops_waiting_for_the_goal(self):
+        # Without _shutting_down the wait loop never ends and the process cannot exit.
+        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=False)
+        server = self._server()
+        server.request_shutdown()
+
+        response = server._handle_set_goal(SetGoal.Request(goal="force_ctrl"), SetGoal.Response())
+
+        self.assertFalse(response.success)
+        self.assertIn("Stopped waiting", response.message)
+
     def test_service_uses_reentrant_callback_group(self):
         self.assertIsInstance(self._server()._callback_group, ReentrantCallbackGroup)
 

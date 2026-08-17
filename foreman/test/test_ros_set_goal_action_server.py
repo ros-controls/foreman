@@ -129,6 +129,19 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertIn(expected, advertised)
         self.assertEqual(advertised[expected], ["foreman_msgs/action/SetGoal"])
 
+    def test_shutdown_stops_waiting_for_the_goal(self):
+        # is_active stays True on shutdown, so without _shutting_down the wait
+        # loop never ends and the process cannot exit.
+        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=False)
+        server = self._server()
+        server.request_shutdown()
+
+        result = server._execute(_goal_handle())
+
+        self.assertFalse(result.success)
+        self.assertIn("Stopped waiting", result.message)
+
     def test_rejected_goal_aborts_without_waiting(self):
         self.engine.request_goal.return_value = ForemanResponse(
             False, "Goal 'nope' not found in configuration."
@@ -278,7 +291,7 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         handle.abort.assert_not_called()
         handle.canceled.assert_not_called()
         self.assertFalse(result.success)
-        self.assertIn("no longer active", result.message)
+        self.assertIn("Stopped waiting", result.message)
 
     def test_already_at_goal_succeeds_without_feedback(self):
         self.engine.request_goal.return_value = ForemanResponse(

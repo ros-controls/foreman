@@ -15,6 +15,7 @@ class RosSetGoalServer:
         self._engine = engine
         self._poll_period = 0.05
         self._execution_lock = execution_lock
+        self._shutting_down = False
         self.logger_prefix = "Adapters.RosSetGoalServer:"
         # Let concurrent callers reach the execution lock and get rejected
         self._callback_group = ReentrantCallbackGroup()
@@ -26,6 +27,10 @@ class RosSetGoalServer:
         print()
 
         self._node.get_logger().info(f"{self.logger_prefix} Service set_goal is ready.")
+
+    def request_shutdown(self):
+        """Stop waiting for a goal, so a blocking call does not outlive the node."""
+        self._shutting_down = True
 
     def _handle_set_goal(self, request, response):
         """Set the target system state."""
@@ -52,6 +57,11 @@ class RosSetGoalServer:
             self._node.get_logger().info(f"{engine_response.message}")
 
             while True:
+                if self._shutting_down:
+                    response.success = False
+                    response.message = f"Stopped waiting for goal '{goal_name}'."
+                    return response
+
                 snapshot = self._engine.get_engine_snapshot()
 
                 if snapshot.error.is_error:
