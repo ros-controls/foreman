@@ -17,10 +17,7 @@ def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None):
     """Build a ForemanSnapshot with a no-error default."""
     if error is None:
         error = ErrorSnapshot(
-            is_error=False,
-            category=ForemanErrorCategory.NONE.value,
-            message="",
-            components=[]
+            is_error=False, category=ForemanErrorCategory.NONE.value, message="", components=[]
         )
     return ForemanSnapshot(goal=goal, ready=ready, at_goal=at_goal, error=error, components=[])
 
@@ -30,7 +27,7 @@ def _error_snapshot(message="boom"):
         is_error=True,
         category=ForemanErrorCategory.EXECUTION.value,
         message=message,
-        components=["ctrl_a"]
+        components=["ctrl_a"],
     )
 
 
@@ -51,11 +48,7 @@ class TestRosSetGoalServer(unittest.TestCase):
     def _server(self, execution_lock=None):
         if execution_lock is None:
             execution_lock = threading.Lock()
-        server = RosSetGoalServer(
-            self.node,
-            self.engine,
-            execution_lock=execution_lock
-        )
+        server = RosSetGoalServer(self.node, self.engine, execution_lock=execution_lock)
         server._poll_period = 0.0
         return server
 
@@ -71,7 +64,8 @@ class TestRosSetGoalServer(unittest.TestCase):
 
     def test_rejected_goal_returns_without_waiting(self):
         self.engine.request_goal.return_value = ForemanResponse(
-            False, "Goal 'nope' not found in configuration.")
+            False, "Goal 'nope' not found in configuration."
+        )
         request = SetGoal.Request(goal="nope")
         response = SetGoal.Response()
 
@@ -87,8 +81,7 @@ class TestRosSetGoalServer(unittest.TestCase):
         request = SetGoal.Request(goal="force_ctrl")
         response = SetGoal.Response()
 
-        response = self._server(execution_lock=execution_lock)._handle_set_goal(
-            request, response)
+        response = self._server(execution_lock=execution_lock)._handle_set_goal(request, response)
 
         self.assertFalse(response.success)
         self.assertIn("already active", response.message)
@@ -118,8 +111,7 @@ class TestRosSetGoalServer(unittest.TestCase):
         request = SetGoal.Request(goal="force_ctrl")
         response = SetGoal.Response()
 
-        response = self._server(execution_lock=execution_lock)._handle_set_goal(
-            request, response)
+        response = self._server(execution_lock=execution_lock)._handle_set_goal(request, response)
 
         self.assertTrue(response.success)
         self.assertTrue(execution_lock.acquire(blocking=False))

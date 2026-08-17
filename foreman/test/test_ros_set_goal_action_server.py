@@ -18,28 +18,21 @@ from foreman.types import LifecycleState
 
 
 def _component(name="ctrl_a", state=LifecycleState.INACTIVE):
-    return Component(
-        name=name,
-        component_type=ComponentType.CONTROLLER,
-        lifecycle_state=state
-    )
+    return Component(name=name, component_type=ComponentType.CONTROLLER, lifecycle_state=state)
 
 
 def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None, components=None):
     """Build a ForemanSnapshot with a no-error default."""
     if error is None:
         error = ErrorSnapshot(
-            is_error=False,
-            category=ForemanErrorCategory.NONE.value,
-            message="",
-            components=[]
+            is_error=False, category=ForemanErrorCategory.NONE.value, message="", components=[]
         )
     return ForemanSnapshot(
         goal=goal,
         ready=ready,
         at_goal=at_goal,
         error=error,
-        components=components if components is not None else []
+        components=components if components is not None else [],
     )
 
 
@@ -48,7 +41,7 @@ def _error_snapshot(category=ForemanErrorCategory.EXECUTION, message="boom", com
         is_error=True,
         category=category.value,
         message=message,
-        components=components if components is not None else ["ctrl_a"]
+        components=components if components is not None else ["ctrl_a"],
     )
 
 
@@ -70,15 +63,20 @@ class TestToErrorMsg(unittest.TestCase):
         self.assertEqual([c.name for c in msg.components], ["a", "b"])
 
     def test_none_components_become_empty_list(self):
-        msg = _to_error_msg(_snapshot(error=ErrorSnapshot(
-            is_error=False, category="None", message="", components=None)))
+        msg = _to_error_msg(
+            _snapshot(
+                error=ErrorSnapshot(is_error=False, category="None", message="", components=None)
+            )
+        )
         self.assertEqual(list(msg.components), [])
 
     def test_blamed_components_carry_their_observed_state(self):
-        msg = _to_error_msg(_snapshot(
-            error=_error_snapshot(components=["ctrl_a"]),
-            components=[_component("ctrl_a", LifecycleState.ACTIVE)]
-        ))
+        msg = _to_error_msg(
+            _snapshot(
+                error=_error_snapshot(components=["ctrl_a"]),
+                components=[_component("ctrl_a", LifecycleState.ACTIVE)],
+            )
+        )
 
         self.assertEqual(len(msg.components), 1)
         self.assertEqual(msg.components[0].name, "ctrl_a")
@@ -88,10 +86,11 @@ class TestToErrorMsg(unittest.TestCase):
     def test_vanished_component_is_named_without_a_state(self):
         # "Required components vanished from /activity" drops the component from
         # the observed state, so only its name is known.
-        msg = _to_error_msg(_snapshot(
-            error=_error_snapshot(components=["gone"]),
-            components=[_component("still_here")]
-        ))
+        msg = _to_error_msg(
+            _snapshot(
+                error=_error_snapshot(components=["gone"]), components=[_component("still_here")]
+            )
+        )
 
         self.assertEqual(len(msg.components), 1)
         self.assertEqual(msg.components[0].name, "gone")
@@ -120,10 +119,7 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         if execution_lock is None:
             execution_lock = threading.Lock()
         return RosSetGoalActionServer(
-            self.node,
-            self.engine,
-            poll_period=0.0,
-            execution_lock=execution_lock
+            self.node, self.engine, poll_period=0.0, execution_lock=execution_lock
         )
 
     def test_action_is_advertised_in_node_namespace(self):
@@ -135,7 +131,8 @@ class TestRosSetGoalActionServer(unittest.TestCase):
 
     def test_rejected_goal_aborts_without_waiting(self):
         self.engine.request_goal.return_value = ForemanResponse(
-            False, "Goal 'nope' not found in configuration.")
+            False, "Goal 'nope' not found in configuration."
+        )
         self.engine.get_engine_snapshot.return_value = _snapshot()
         handle = _goal_handle("nope")
 
@@ -148,7 +145,8 @@ class TestRosSetGoalActionServer(unittest.TestCase):
 
     def test_rejected_goal_does_not_report_a_leftover_engine_error(self):
         self.engine.request_goal.return_value = ForemanResponse(
-            False, "Goal 'nope' not found in configuration.")
+            False, "Goal 'nope' not found in configuration."
+        )
         self.engine.get_engine_snapshot.return_value = _snapshot(
             error=_error_snapshot(message="leftover failure")
         )
@@ -239,7 +237,7 @@ class TestRosSetGoalActionServer(unittest.TestCase):
             _snapshot(at_goal=False),
             _snapshot(
                 error=_error_snapshot(message="Service rejected the transition."),
-                components=[_component("ctrl_a", LifecycleState.INACTIVE)]
+                components=[_component("ctrl_a", LifecycleState.INACTIVE)],
             ),
         ]
         handle = _goal_handle()
@@ -284,7 +282,8 @@ class TestRosSetGoalActionServer(unittest.TestCase):
 
     def test_already_at_goal_succeeds_without_feedback(self):
         self.engine.request_goal.return_value = ForemanResponse(
-            True, "Already at goal 'force_ctrl'.")
+            True, "Already at goal 'force_ctrl'."
+        )
         self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=True)
         handle = _goal_handle()
 

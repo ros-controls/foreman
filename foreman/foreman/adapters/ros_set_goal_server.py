@@ -20,10 +20,7 @@ class RosSetGoalServer:
         self._callback_group = ReentrantCallbackGroup()
 
         self._srv = self._node.create_service(
-            SetGoal,
-            "~/set_goal",
-            self._handle_set_goal,
-            callback_group=self._callback_group
+            SetGoal, "~/set_goal", self._handle_set_goal, callback_group=self._callback_group
         )
 
         print()
@@ -59,12 +56,10 @@ class RosSetGoalServer:
 
                 if snapshot.error.is_error:
                     response.success = False
-                    response.message = (
-                        f"[{snapshot.error.category}] {snapshot.error.message}"
-                    )
+                    response.message = f"[{snapshot.error.category}] {snapshot.error.message}"
                     self._node.get_logger().error(
-                        f"{self.logger_prefix} Goal '{goal_name}' aborted: "
-                        f"{response.message}")
+                        f"{self.logger_prefix} Goal '{goal_name}' aborted: " f"{response.message}"
+                    )
                     return response
 
                 if snapshot.goal != goal_name:
@@ -72,15 +67,13 @@ class RosSetGoalServer:
                     response.message = (
                         f"Goal '{goal_name}' was preempted by goal '{snapshot.goal}'."
                     )
-                    self._node.get_logger().warning(
-                        f"{self.logger_prefix} {response.message}")
+                    self._node.get_logger().warning(f"{self.logger_prefix} {response.message}")
                     return response
 
                 if snapshot.at_goal:
                     response.success = True
                     response.message = f"Goal '{goal_name}' reached."
-                    self._node.get_logger().info(
-                        f"{self.logger_prefix} {response.message}")
+                    self._node.get_logger().info(f"{self.logger_prefix} {response.message}")
                     return response
 
                 time.sleep(self._poll_period)

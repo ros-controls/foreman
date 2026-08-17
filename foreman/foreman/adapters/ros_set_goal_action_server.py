@@ -43,26 +43,21 @@ class RosSetGoalActionServer:
     """ROS 2 action interface to set the Foreman goal."""
 
     def __init__(
-        self,
-        node: Node,
-        engine: ForemanEngine,
-        poll_period: float = 0.05,
-        *,
-        execution_lock
+        self, node: Node, engine: ForemanEngine, poll_period: float = 0.05, *, execution_lock
     ):
         self._engine = engine
         self._poll_period = poll_period
         self._execution_lock = execution_lock
-        self._logger = node.get_logger().get_child('action')
+        self._logger = node.get_logger().get_child("action")
 
         self._action_server = ActionServer(
             node,
             SetGoal,
-            '~/set_goal',
+            "~/set_goal",
             execute_callback=self._execute,
             goal_callback=self._on_goal_request,
             cancel_callback=self._on_cancel_request,
-            callback_group=node.callback_group_subscriber
+            callback_group=node.callback_group_subscriber,
         )
 
         self._logger.info("Action set_goal is ready.")
