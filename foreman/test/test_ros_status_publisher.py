@@ -19,7 +19,7 @@ def _component(name="joint_trajectory_controller", state=LifecycleState.INACTIVE
     return Component(name=name, component_type=ComponentType.CONTROLLER, lifecycle_state=state)
 
 
-def _snapshot(components=None):
+def _snapshot(components=None, all_goals=None, available_goals=None):
     return ForemanSnapshot(
         goal="running",
         ready=True,
@@ -31,6 +31,8 @@ def _snapshot(components=None):
             components=["joint_trajectory_controller"],
         ),
         components=components if components is not None else [_component()],
+        all_goals=all_goals if all_goals is not None else ["idle", "running"],
+        available_goals=available_goals if available_goals is not None else ["idle"],
     )
 
 
@@ -74,6 +76,8 @@ class TestRosStatusPublisher(unittest.TestCase):
             published.error.components[0].component_type, ComponentType.CONTROLLER.value
         )
         self.assertEqual(published.error.components[0].lifecycle_state, "INACTIVE")
+        self.assertEqual(list(published.all_goals), ["idle", "running"])
+        self.assertEqual(list(published.available_goals), ["idle"])
 
     def test_status_topic_is_transient_local(self):
         publisher = RosStatusPublisher(self.node)
