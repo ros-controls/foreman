@@ -17,11 +17,6 @@ find_package(action_msgs REQUIRED)
 set(msg_files
   "msg/ComponentState.msg"
   "msg/ForemanErrorState.msg"
-)
-
-set(msg_files
-  "msg/ComponentState.msg"
-  "msg/ForemanErrorState.msg"
   "msg/ForemanStatus.msg"
 )
 
