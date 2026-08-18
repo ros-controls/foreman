@@ -50,6 +50,8 @@ class RosStatusPublisher:
 
         msg.all_profiles = list(snapshot.all_profiles)
         msg.available_profiles = list(snapshot.available_profiles)
+        msg.operating_mode = snapshot.operating_mode
+        msg.stop_state = snapshot.stop_state
 
         if msg == self._last_published:
             return

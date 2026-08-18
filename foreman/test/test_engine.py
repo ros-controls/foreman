@@ -10,6 +10,8 @@ from foreman.types import (
     ForemanError,
     ForemanErrorCategory,
     LifecycleState,
+    OperatingMode,
+    StopState,
     SystemProfile,
 )
 
@@ -333,3 +335,42 @@ def test_snapshot_available_profiles_reflects_dependency_satisfaction(dependency
     )
     snapshot = engine.get_engine_snapshot()
     assert set(snapshot.available_profiles) == {"active", "active_full"}
+
+
+# --- Machinery Regulation Status Tests ---
+
+
+def test_snapshot_falls_back_to_defaults_before_a_profile_is_active(minimal_foreman_config):
+    """Falls back to the defaults when no profile is active yet."""
+    lock = threading.Lock()
+    engine = ForemanEngine(minimal_foreman_config, lock)
+
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.operating_mode == OperatingMode.AUTOMATIC.value
+    assert snapshot.stop_state == StopState.RUNNING.value
+
+
+def test_snapshot_reports_active_profiles_declared_operating_mode_and_stop_state():
+    """Reports the active profile's declared operating mode and stop state."""
+    lock = threading.Lock()
+    profile = SystemProfile(
+        "teach",
+        hardware_targets=[Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        operating_mode=OperatingMode.MANUAL_REDUCED,
+        stop_state=StopState.NORMAL_STOP,
+    )
+    config = ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        profiles={"teach": profile},
+        tracked_components={"hw1"},
+    )
+    engine = ForemanEngine(config, lock)
+    engine.set_system_state(
+        [Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)]
+    )
+    engine.request_profile("teach")
+
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.operating_mode == OperatingMode.MANUAL_REDUCED.value
+    assert snapshot.stop_state == StopState.NORMAL_STOP.value

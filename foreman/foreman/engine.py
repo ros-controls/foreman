@@ -11,6 +11,8 @@ from foreman.types import (
     ForemanResponse,
     ForemanSnapshot,
     LifecycleState,
+    OperatingMode,
+    StopState,
     SystemProfile,
     SystemState,
     SystemTransitionCommand,
@@ -219,6 +221,19 @@ class ForemanEngine:
                     ]
                     if self._is_ready
                     else []
+                ),
+                # Each profile declares the operating mode/stop state it represents.
+                # Foreman only relays the active profile's declared value - it does
+                # not observe or decide the actual safety-rated state itself.
+                operating_mode=(
+                    self._current_profile.operating_mode.value
+                    if self._current_profile
+                    else OperatingMode.AUTOMATIC.value
+                ),
+                stop_state=(
+                    self._current_profile.stop_state.value
+                    if self._current_profile
+                    else StopState.RUNNING.value
                 ),
             )
 

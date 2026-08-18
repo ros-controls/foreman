@@ -19,6 +19,8 @@ controllers:
 profiles:
 
   idle:
+    operating_mode: manual_reduced
+    stop_state: normal_stop
     controllers:
       joint_state_broadcaster: inactive
       kassow_joint_trajectory_controller: inactive
@@ -41,6 +43,8 @@ profiles:
       dummy_lifecycle_node: active
 
   running:
+    operating_mode: automatic
+    stop_state: running
     controllers:
       joint_state_broadcaster: active
       kassow_joint_trajectory_controller: active

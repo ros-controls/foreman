@@ -10,6 +10,8 @@ from foreman.types import (
     ControllerDependencyRule,
     HardwareRequirement,
     LifecycleState,
+    OperatingMode,
+    StopState,
     SystemProfile,
 )
 
@@ -44,6 +46,33 @@ def parse_state_string(state_str: str) -> LifecycleState:
     if normalized not in state_mapping:
         raise ValueError(f"Unknown state: {state_str}")
     return state_mapping[normalized]
+
+
+def parse_operating_mode_string(mode_str: str) -> OperatingMode:
+    """Convert YAML operating mode string to OperatingMode enum."""
+    mode_mapping = {
+        "automatic": OperatingMode.AUTOMATIC,
+        "manual_reduced": OperatingMode.MANUAL_REDUCED,
+        "manual_high": OperatingMode.MANUAL_HIGH,
+    }
+    normalized = mode_str.lower()
+    if normalized not in mode_mapping:
+        raise ValueError(f"Unknown operating mode: {mode_str}")
+    return mode_mapping[normalized]
+
+
+def parse_stop_state_string(stop_state_str: str) -> StopState:
+    """Convert YAML stop state string to StopState enum."""
+    stop_state_mapping = {
+        "running": StopState.RUNNING,
+        "normal_stop": StopState.NORMAL_STOP,
+        "operational_stop": StopState.OPERATIONAL_STOP,
+        "emergency_stop": StopState.EMERGENCY_STOP,
+    }
+    normalized = stop_state_str.lower()
+    if normalized not in stop_state_mapping:
+        raise ValueError(f"Unknown stop state: {stop_state_str}")
+    return stop_state_mapping[normalized]
 
 
 def parse_requires(
@@ -148,11 +177,20 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
                 )
             )
 
+        operating_mode = profile_config.get("operating_mode")
+        stop_state = profile_config.get("stop_state")
+
         profiles[profile_name] = SystemProfile(
             name=profile_name,
             hardware_targets=hw_targets,
             controller_targets=ctrl_targets,
             lifecycle_node_targets=lc_targets,
+            operating_mode=(
+                parse_operating_mode_string(operating_mode)
+                if operating_mode
+                else OperatingMode.AUTOMATIC
+            ),
+            stop_state=(parse_stop_state_string(stop_state) if stop_state else StopState.RUNNING),
         )
 
     metadata = {}
