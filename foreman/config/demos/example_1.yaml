@@ -1,0 +1,10 @@
+controller_manager: controller_manager
+transition_pause: 0.5
+ 
+base:
+  controllers: [joint_state_broadcaster]
+  hardware:    [RRBot]
+ 
+running:
+  controllers: [joint_state_broadcaster, forward_position_controller]
+  hardware:    [RRBot]

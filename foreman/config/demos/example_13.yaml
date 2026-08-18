@@ -1,0 +1,57 @@
+controller_manager: controller_manager
+transition_pause: 0.5
+
+base:
+  controllers:
+    - joint_state_broadcaster
+    - rrbot_joint_state_broadcaster
+    - rrbot_with_sensor_joint_state_broadcaster
+    - rrbot_external_fts_broadcaster
+    - rrbot_with_sensor_fts_broadcaster
+  hardware:
+    - RRBotSystemPositionOnly
+    - RRBotSystemWithSensor
+    - ExternalRRBotFTSensor
+
+right_running:
+  controllers:
+    - joint_state_broadcaster
+    - rrbot_joint_state_broadcaster
+    - rrbot_position_controller
+  hardware:
+    - RRBotSystemPositionOnly
+
+left_running:
+  controllers:
+    - joint_state_broadcaster
+    - rrbot_with_sensor_joint_state_broadcaster
+    - rrbot_with_sensor_position_controller
+  hardware:
+    - RRBotSystemWithSensor
+
+middle_running:
+  controllers:
+    - joint_state_broadcaster
+    - threedofbot_joint_state_broadcaster
+    - threedofbot_pid_gain_controller
+    - threedofbot_position_controller
+  hardware:
+    - FakeThreeDofBot
+
+all_running:
+  controllers:
+    - joint_state_broadcaster
+    - rrbot_joint_state_broadcaster
+    - rrbot_external_fts_broadcaster
+    - rrbot_position_controller
+    - rrbot_with_sensor_joint_state_broadcaster
+    - rrbot_with_sensor_fts_broadcaster
+    - rrbot_with_sensor_position_controller
+    - threedofbot_joint_state_broadcaster
+    - threedofbot_pid_gain_controller
+    - threedofbot_position_controller
+  hardware:
+    - RRBotSystemPositionOnly
+    - RRBotSystemWithSensor
+    - ExternalRRBotFTSensor
+    - FakeThreeDofBot
