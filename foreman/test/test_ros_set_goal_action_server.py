@@ -33,6 +33,8 @@ def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None, componen
         at_goal=at_goal,
         error=error,
         components=components if components is not None else [],
+        all_goals=[],
+        available_goals=[],
     )
 
 

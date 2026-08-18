@@ -19,7 +19,15 @@ def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None):
         error = ErrorSnapshot(
             is_error=False, category=ForemanErrorCategory.NONE.value, message="", components=[]
         )
-    return ForemanSnapshot(goal=goal, ready=ready, at_goal=at_goal, error=error, components=[])
+    return ForemanSnapshot(
+        goal=goal,
+        ready=ready,
+        at_goal=at_goal,
+        error=error,
+        components=[],
+        all_goals=[],
+        available_goals=[],
+    )
 
 
 def _error_snapshot(message="boom"):
