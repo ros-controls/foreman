@@ -31,7 +31,6 @@ class ForemanEngine:
         self._state_lock = state_lock
 
         self._current_profile = None
-        self._at_profile = False
         self._is_ready = False  # when we get first /activity reading
         self._error_state: Optional[ForemanError] = None
 
@@ -39,7 +38,7 @@ class ForemanEngine:
     def is_at_profile(self) -> bool:
         """Checks if there are any remaining transitions to reach the profile."""
         with self._state_lock:
-            return self._at_profile
+            return self._locked_is_at_profile()
 
     def request_profile(self, profile_name: str) -> ForemanResponse:
         """
@@ -78,12 +77,11 @@ class ForemanEngine:
             # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._current_profile == Null.
             # Fix this so we log "Already at profile"
             if self._current_profile == profile:
-                if self._at_profile:
+                if self._locked_is_at_profile():
                     return ForemanResponse(True, f"Already at profile '{profile_name}'.")
                 return ForemanResponse(True, f"Already transitioning to '{profile_name}'.")
 
             self._current_profile = profile
-            self._at_profile = self._locked_is_at_profile()
 
         return ForemanResponse(True, f"{error_cleared_msg}Profile '{profile_name}' accepted.")
 
@@ -116,7 +114,7 @@ class ForemanEngine:
 
         with self._state_lock:
             previous_state = self._state.components
-            was_at_profile = self._at_profile
+            was_at_profile = self._locked_is_at_profile()
             self._state.components = {comp.name: comp for comp in tracked_components}
 
             was_ready = self._is_ready
@@ -125,9 +123,7 @@ class ForemanEngine:
             if not was_ready:
                 return ForemanResponse(True, "System state observed.")
 
-            response = self._locked_check_profile(previous_state, was_at_profile)
-            self._at_profile = self._locked_is_at_profile()
-            return response
+            return self._locked_check_profile(previous_state, was_at_profile)
 
     def _locked_check_profile(
         self, previous_state: Dict[str, Component], was_at_profile: bool
@@ -195,7 +191,7 @@ class ForemanEngine:
             return ForemanSnapshot(
                 profile=self._locked_current_profile_name(),
                 ready=self._is_ready,
-                at_profile=self._at_profile,
+                at_profile=self._locked_is_at_profile(),
                 error=ErrorSnapshot(
                     is_error=self._error_state is not None,
                     category=(
