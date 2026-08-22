@@ -1,5 +1,5 @@
 import threading
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from foreman.parser import ParsedScenario
 from foreman.planner import Planner
@@ -31,15 +31,15 @@ class ForemanEngine:
         self._state_lock = state_lock
 
         self._current_profile = None
+        self._at_profile = False
         self._is_ready = False  # when we get first /activity reading
         self._error_state: Optional[ForemanError] = None
-        self._last_issued_command: Optional[SystemTransitionCommand] = None
 
     @property
     def is_at_profile(self) -> bool:
         """Checks if there are any remaining transitions to reach the profile."""
         with self._state_lock:
-            return self._locked_is_at_profile()
+            return self._at_profile
 
     def request_profile(self, profile_name: str) -> ForemanResponse:
         """
@@ -74,16 +74,16 @@ class ForemanEngine:
 
             error_cleared_msg = "Error cleared on new profile. " if self._error_state else ""
             self._error_state = None  # new profile received, clear error and try again.
-            self._last_issued_command = None
 
             # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._current_profile == Null.
             # Fix this so we log "Already at profile"
             if self._current_profile == profile:
-                if self._locked_is_at_profile():
+                if self._at_profile:
                     return ForemanResponse(True, f"Already at profile '{profile_name}'.")
                 return ForemanResponse(True, f"Already transitioning to '{profile_name}'.")
 
             self._current_profile = profile
+            self._at_profile = self._locked_is_at_profile()
 
         return ForemanResponse(True, f"{error_cleared_msg}Profile '{profile_name}' accepted.")
 
@@ -91,7 +91,6 @@ class ForemanEngine:
         """Aborts the current profile by stopping transitions."""
         with self._state_lock:
             self._error_state = error
-            self._last_issued_command = None
             self._locked_abort_transition()
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
@@ -103,85 +102,87 @@ class ForemanEngine:
             if not self._is_ready or self._error_state:
                 return None
 
-            cmd = self._planner.get_next_transition(self._state, self._current_profile)
-            self._last_issued_command = cmd
-            return cmd
+            return self._planner.get_next_transition(self._state, self._current_profile)
 
     def set_system_state(self, components: List[Component]) -> ForemanResponse:
         """
         Set internal system state to that which is observed.
 
-        Monitors for unexpected changes in component state.
+        Called for every update from the /activity topic and from a lifecycle
+        node's /transition_event. Checks the resulting profile and updates the
+        error accordingly.
         """
         tracked_components = [c for c in components if c.name in self._config.tracked_components]
 
         with self._state_lock:
-            # overwrite existing state
             previous_state = self._state.components
-
+            was_at_profile = self._at_profile
             self._state.components = {comp.name: comp for comp in tracked_components}
 
             was_ready = self._is_ready
             self._is_ready = True
 
-            # In these cases, we just observe state
-            if self._error_state or not was_ready or not self._current_profile:
+            if not was_ready:
                 return ForemanResponse(True, "System state observed.")
 
-            # otherwise, check for anomalies among components listed in yaml file
-            unexpected_changes = []
-            missing_components = []
+            response = self._locked_check_profile(previous_state, was_at_profile)
+            self._at_profile = self._locked_is_at_profile()
+            return response
 
-            for incoming in tracked_components:
-                existing = previous_state.get(incoming.name)
-                if existing and incoming.lifecycle_state != existing.lifecycle_state:
-                    expected = (
-                        self._last_issued_command
-                        and self._last_issued_command.component.name == incoming.name
-                        and self._last_issued_command.goal_state == incoming.lifecycle_state
-                    )
-                    if not expected:
-                        unexpected_changes.append(
-                            (
-                                incoming.name,
-                                existing.lifecycle_state.name,
-                                incoming.lifecycle_state.name,
-                            )
-                        )
+    def _locked_check_profile(
+        self, previous_state: Dict[str, Component], was_at_profile: bool
+    ) -> ForemanResponse:
+        """
+        Check the live state against the configured profiles and update the error.
 
-            # unexpected missing components
-            missing_components = self._locked_missing_profile_components(self._current_profile)
+        Clears a stale error once the live state matches a configured profile
+        again. Raises a new error only if we were already at the requested
+        profile and a component then drifts away from it in the background --
+        not while still driving toward it.
 
-            # if any anomalies, emit error
-            if unexpected_changes or missing_components:
-                error_msgs = []
-                error_components = []
+        MUST be called while holding self._state_lock!
+        """
+        if self._locked_matching_profile_name() != "None":
+            self._error_state = None
 
-                if missing_components:
-                    error_msgs.append(
-                        f"Required components vanished from /activity: {missing_components}"
-                    )
-                    error_components.extend(missing_components)
+        if self._error_state or not self._current_profile or not was_at_profile:
+            return ForemanResponse(True, "System state observed.")
 
-                if unexpected_changes:
-                    msgs = [f"{name} ({old}->{new})" for name, old, new in unexpected_changes]
-                    error_msgs.append(f"Unexpected state changes: {', '.join(msgs)}")
-                    error_components.extend([change[0] for change in unexpected_changes])
-
-                self._error_state = ForemanError(
-                    category=ForemanErrorCategory.UNEXPECTED_STATE,
-                    message="Aborting transition:\n  - " + "\n  - ".join(error_msgs),
-                    component_names=list(set(error_components)),
+        unexpected_changes = []
+        for incoming in self._state.components.values():
+            existing = previous_state.get(incoming.name)
+            if existing and incoming.lifecycle_state != existing.lifecycle_state:
+                unexpected_changes.append(
+                    (incoming.name, existing.lifecycle_state.name, incoming.lifecycle_state.name)
                 )
 
-                self._last_issued_command = None
-                self._locked_abort_transition()
+        missing_components = self._locked_missing_profile_components(self._current_profile)
 
-                return ForemanResponse(
-                    success=False, message="Unexpected system state.", error=self._error_state
-                )
-
+        if not unexpected_changes and not missing_components:
             return ForemanResponse(True, "System state observed with no anomalies.")
+
+        error_msgs = []
+        error_components = []
+
+        if missing_components:
+            error_msgs.append(f"Required components vanished from /activity: {missing_components}")
+            error_components.extend(missing_components)
+
+        if unexpected_changes:
+            msgs = [f"{name} ({old}->{new})" for name, old, new in unexpected_changes]
+            error_msgs.append(f"Unexpected state changes: {', '.join(msgs)}")
+            error_components.extend([change[0] for change in unexpected_changes])
+
+        self._error_state = ForemanError(
+            category=ForemanErrorCategory.UNEXPECTED_STATE,
+            message="Aborting transition:\n  - " + "\n  - ".join(error_msgs),
+            component_names=list(set(error_components)),
+        )
+        self._locked_abort_transition()
+
+        return ForemanResponse(
+            success=False, message="Unexpected system state.", error=self._error_state
+        )
 
     @property
     def is_ready(self) -> bool:
@@ -194,7 +195,7 @@ class ForemanEngine:
             return ForemanSnapshot(
                 profile=self._locked_current_profile_name(),
                 ready=self._is_ready,
-                at_profile=self._locked_is_at_profile(),
+                at_profile=self._at_profile,
                 error=ErrorSnapshot(
                     is_error=self._error_state is not None,
                     category=(
@@ -242,7 +243,18 @@ class ForemanEngine:
         """
         if self._current_profile:
             return self._current_profile.name
+        return self._locked_matching_profile_name()
 
+    def _locked_matching_profile_name(self) -> str:
+        """
+        Find the configured profile that the live observed state matches.
+
+        A profile matches when every one of its declared targets is present in
+        the observed state at exactly its declared lifecycle state. Returns
+        "None" if no profile matches.
+
+        MUST be called while holding self._state_lock!
+        """
         for name, profile in self._config.profiles.items():
             targets = (
                 profile.hardware_targets
