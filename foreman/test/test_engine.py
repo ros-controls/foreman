@@ -126,6 +126,38 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
     assert snapshot.at_profile is True
 
 
+def test_unrelated_component_change_flagged_even_while_driving(hardware_and_controller_config):
+    """An unexpected change to a component not being driven is still an error."""
+    lock = threading.Lock()
+    engine = ForemanEngine(hardware_and_controller_config, lock)
+
+    # ctrl1 already active and settled; hw1 still needs driving
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
+        ]
+    )
+    engine.request_profile("running")
+
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.component.name == "hw1"
+
+    # hw1 takes its expected step, but ctrl1 crashes -- unrelated to what's being driven
+    response = engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, cmd.goal_state),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
+        ]
+    )
+
+    assert response.success is False
+    assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
+    assert "ctrl1" in response.error.component_names
+    assert "hw1" not in response.error.component_names
+
+
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     lock = threading.Lock()
     engine = ForemanEngine(minimal_foreman_config, lock)
@@ -158,6 +190,98 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
 
     # verify planner halts
     assert engine.get_next_transition() is None
+
+
+def test_profile_follows_observed_state_after_deactivate_and_reactivate(minimal_foreman_config):
+    """
+    Profile reflects live observed state, not a remembered target.
+
+    Deactivating hw1 outside Foreman drops the profile to 'None'. Reactivating
+    it brings the profile back on its own, with no new request_profile() call.
+    """
+    engine = _prepare_engine(minimal_foreman_config)
+    engine.request_profile("active_profile")
+
+    comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    engine.set_system_state([comp1])
+    assert engine.get_engine_snapshot().profile == "active_profile"
+
+    # hw1 deactivated directly on the controller_manager, bypassing Foreman
+    comp1_deactivated = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
+    engine.set_system_state([comp1_deactivated])
+    assert engine.get_engine_snapshot().profile == "None"
+
+    # hw1 reactivated directly again -- no request_profile() call in between
+    comp1_reactivated = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    engine.set_system_state([comp1_reactivated])
+    assert engine.get_engine_snapshot().profile == "active_profile"
+
+
+@pytest.fixture
+def hardware_and_controller_config():
+    profile = SystemProfile(
+        "running",
+        hardware_targets=[Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        controller_targets=[Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+    )
+    return ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        profiles={"running": profile},
+        tracked_components={"hw1", "ctrl1"},
+    )
+
+
+def test_profile_stays_none_until_every_component_matches_again(hardware_and_controller_config):
+    """
+    Profile returns only once every tracked component matches again.
+
+    Deactivating hw1 takes ctrl1 down with it, as controller_manager would.
+    Reactivating hw1 alone is not enough: the profile stays 'None' until ctrl1
+    is reactivated too.
+    """
+    engine = _prepare_engine(hardware_and_controller_config)
+    engine.request_profile("running")
+
+    hw1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    ctrl1 = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
+    engine.set_system_state([hw1, ctrl1])
+    assert engine.get_engine_snapshot().profile == "running"
+
+    # hw1 deactivated directly, taking ctrl1 down with it
+    hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
+    ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
+    engine.set_system_state([hw1_inactive, ctrl1_inactive])
+    assert engine.get_engine_snapshot().profile == "None"
+
+    # hw1 reactivated alone -- ctrl1 is still inactive, profile stays "None"
+    engine.set_system_state([hw1, ctrl1_inactive])
+    assert engine.get_engine_snapshot().profile == "None"
+
+    # ctrl1 reactivated too -- both match "running" again, profile comes back
+    engine.set_system_state([hw1, ctrl1])
+    assert engine.get_engine_snapshot().profile == "running"
+
+
+def test_error_clears_once_state_matches_a_profile_again(hardware_and_controller_config):
+    """Error clears on its own once state matches a profile again, with no request_profile() call."""
+    engine = _prepare_engine(hardware_and_controller_config)
+    engine.request_profile("running")
+
+    hw1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    ctrl1 = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
+    engine.set_system_state([hw1, ctrl1])
+
+    # ctrl1 dropped unexpectedly
+    ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
+    engine.set_system_state([hw1, ctrl1_inactive])
+    assert engine.get_engine_snapshot().error.is_error is True
+
+    # ctrl1 reactivated directly -- state matches "running" again, error clears itself
+    engine.set_system_state([hw1, ctrl1])
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.error.is_error is False
+    assert snapshot.profile == "running"
 
 
 # --- Lifecycle Node Engine Tests ---
