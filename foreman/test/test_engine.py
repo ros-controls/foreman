@@ -229,23 +229,40 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     every change here comes from outside Foreman.
     """
     engine = _prepare_engine(hardware_and_controller_config)
+    engine.request_profile("running")
 
+    # drives up from scratch: hw1 first, then ctrl1, one step at a time
+    cmd = engine.get_next_transition()
+    assert cmd.component.name == "hw1"
+    hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
+    ctrl1_unconfigured = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
+    engine.set_system_state([hw1_inactive, ctrl1_unconfigured])
+
+    cmd = engine.get_next_transition()
+    assert cmd.component.name == "hw1"
     hw1_active = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    engine.set_system_state([hw1_active, ctrl1_unconfigured])
+
+    cmd = engine.get_next_transition()
+    assert cmd.component.name == "ctrl1"
+    ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
+    engine.set_system_state([hw1_active, ctrl1_inactive])
+
+    cmd = engine.get_next_transition()
+    assert cmd.component.name == "ctrl1"
     ctrl1_active = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
     engine.set_system_state([hw1_active, ctrl1_active])
-    engine.request_profile("running")
     assert engine.get_engine_snapshot().profile == "running"
 
     # hw1 deactivated directly, taking ctrl1 down with it -- lands on a known
     # profile ("all_inactive"), but it's still unexpected: nobody requested it
-    hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
-    ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     response = engine.set_system_state([hw1_inactive, ctrl1_inactive])
     assert response.success is False
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
     assert snapshot.profile == "all_inactive"
+    assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
     # hw1 reactivated alone -- ctrl1 is still inactive, profile stays "None"
     engine.set_system_state([hw1_active, ctrl1_inactive])
@@ -260,6 +277,7 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     snapshot = engine.get_engine_snapshot()
     assert snapshot.profile == "running"
     assert snapshot.error.is_error is False
+    assert snapshot.error.components == []
 
 
 def test_error_clears_once_state_matches_a_profile_again(hardware_and_controller_config):
