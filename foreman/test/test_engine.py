@@ -191,25 +191,6 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     assert engine.get_next_transition() is None
 
 
-def test_profile_follows_observed_state_after_deactivate_and_reactivate(minimal_foreman_config):
-    """Profile reflects live observed state, not a remembered target."""
-    engine = _prepare_engine(minimal_foreman_config)
-    engine.request_profile("active_profile")
-
-    comp1_active = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
-    engine.set_system_state([comp1_active])
-    assert engine.get_engine_snapshot().profile == "active_profile"
-
-    # hw1 deactivated directly on the controller_manager, bypassing Foreman
-    comp1_deactivated = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
-    engine.set_system_state([comp1_deactivated])
-    assert engine.get_engine_snapshot().profile == "None"
-
-    # hw1 reactivated directly again -- no request_profile() call in between
-    engine.set_system_state([comp1_active])
-    assert engine.get_engine_snapshot().profile == "active_profile"
-
-
 @pytest.fixture
 def hardware_and_controller_config():
     running = SystemProfile(
@@ -266,6 +247,8 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     snapshot = engine.get_engine_snapshot()
     assert snapshot.profile == "None"
     assert snapshot.error.is_error is True
+    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
+    assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
     # ctrl1 reactivated too -- both match "running" again, profile and error recover
     engine.set_system_state([hw1_active, ctrl1_active])
@@ -287,7 +270,10 @@ def test_error_clears_once_state_matches_a_profile_again(hardware_and_controller
     hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
     ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     engine.set_system_state([hw1_inactive, ctrl1_inactive])
-    assert engine.get_engine_snapshot().error.is_error is True
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.error.is_error is True
+    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
+    assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
     # operator explicitly re-requests "running" -- clears the error directly, not reactively
     response = engine.request_profile("running")
