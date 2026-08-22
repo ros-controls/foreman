@@ -133,10 +133,10 @@ class ForemanEngine:
         Check the live state against the configured profiles and update the error.
 
         Clears a stale error once the live state matches a configured profile
-        again. While a profile is targeted, raises a new error if a component
-        ends up in anything other than what Foreman itself last commanded it
-        to -- whether that's mid-transition or the final step landing in the
-        wrong state -- or if a required component vanishes.
+        again. Raises a new error if a component changes to anything other
+        than what Foreman itself last commanded, at any point a profile is
+        targeted -- not just mid-transition. Also raises an error if a
+        required component vanishes.
 
         MUST be called while holding self._state_lock!
         """
