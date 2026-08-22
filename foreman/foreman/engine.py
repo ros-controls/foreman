@@ -184,10 +184,6 @@ class ForemanEngine:
             return ForemanResponse(True, "System state observed with no anomalies.")
 
     @property
-    def current_profile_name(self) -> str:
-        return self._current_profile.name if self._current_profile else "None"
-
-    @property
     def is_ready(self) -> bool:
         """Return True if the system is observed and ready to plan."""
         return self._is_ready
@@ -196,7 +192,7 @@ class ForemanEngine:
         """Return a simplified snapshot of the system state."""
         with self._state_lock:
             return ForemanSnapshot(
-                profile=self.current_profile_name,
+                profile=self._locked_current_profile_name(),
                 ready=self._is_ready,
                 at_profile=self._locked_is_at_profile(),
                 error=ErrorSnapshot(
@@ -233,6 +229,35 @@ class ForemanEngine:
 
         # If planner returns nothing, we have reached the target profile
         return self._planner.get_next_transition(self._state, self._current_profile) is None
+
+    def _locked_current_profile_name(self) -> str:
+        """
+        Name of the profile Foreman currently reports.
+
+        While driving toward a requested profile, returns that profile's name,
+        even mid-transition. Otherwise, returns the profile that matches the
+        live observed state, or "None" if none matches.
+
+        MUST be called while holding self._state_lock!
+        """
+        if self._current_profile:
+            return self._current_profile.name
+
+        for name, profile in self._config.profiles.items():
+            targets = (
+                profile.hardware_targets
+                + profile.controller_targets
+                + profile.lifecycle_node_targets
+            )
+            matches = True
+            for target in targets:
+                observed = self._state.components.get(target.name)
+                if observed is None or observed.lifecycle_state != target.lifecycle_state:
+                    matches = False
+                    break
+            if matches:
+                return name
+        return "None"
 
     def _locked_missing_profile_components(self, target_profile: SystemProfile) -> List[str]:
         """

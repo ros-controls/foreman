@@ -160,6 +160,32 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     assert engine.get_next_transition() is None
 
 
+def test_profile_follows_observed_state_after_deactivate_and_reactivate(minimal_foreman_config):
+    """
+    Profile reflects live observed state, not a remembered target.
+
+    Deactivating hw1 outside Foreman drops the profile to 'None'. Reactivating
+    it brings the profile back on its own, with no new request_profile() call.
+    """
+    lock = threading.Lock()
+    engine = ForemanEngine(minimal_foreman_config, lock)
+
+    comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    engine.set_system_state([comp1])
+    engine.request_profile("active_profile")
+    assert engine.get_engine_snapshot().profile == "active_profile"
+
+    # hw1 deactivated directly on the controller_manager, bypassing Foreman
+    comp1_deactivated = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
+    engine.set_system_state([comp1_deactivated])
+    assert engine.get_engine_snapshot().profile == "None"
+
+    # hw1 reactivated directly again -- no request_profile() call in between
+    comp1_reactivated = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    engine.set_system_state([comp1_reactivated])
+    assert engine.get_engine_snapshot().profile == "active_profile"
+
+
 # --- Lifecycle Node Engine Tests ---
 
 
