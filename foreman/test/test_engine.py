@@ -128,8 +128,7 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
 
 def test_unrelated_component_change_flagged_even_while_driving(hardware_and_controller_config):
     """An unexpected change to a component not being driven is still an error."""
-    lock = threading.Lock()
-    engine = ForemanEngine(hardware_and_controller_config, lock)
+    engine = _prepare_engine(hardware_and_controller_config)
 
     # ctrl1 already active and settled; hw1 still needs driving
     engine.set_system_state(
@@ -159,8 +158,7 @@ def test_unrelated_component_change_flagged_even_while_driving(hardware_and_cont
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
-    lock = threading.Lock()
-    engine = ForemanEngine(minimal_foreman_config, lock)
+    engine = _prepare_engine(minimal_foreman_config)
 
     # start in active state
     comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
@@ -355,8 +353,7 @@ def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
 
 def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
     """Engine detects unexpected lifecycle node state drop."""
-    lock = threading.Lock()
-    engine = ForemanEngine(lifecycle_foreman_config, lock)
+    engine = _prepare_engine(lifecycle_foreman_config)
 
     # Start at profile
     active = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
