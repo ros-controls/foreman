@@ -134,11 +134,11 @@ class ForemanEngine:
 
         Clears a stale error once the live state matches a configured profile
         again. Raises a new error if a component changes to anything other
-        than what Foreman itself last commanded, at any point a profile is
-        targeted -- not just mid-transition. Also raises an error if a
-        required component vanishes. The error lists every component
-        currently mismatched against the profile, not just the one that
-        triggered it.
+        than what Foreman itself last commanded or its own profile target,
+        at any point a profile is targeted -- not just mid-transition. Also
+        raises an error if a required component vanishes. The error lists
+        every component currently mismatched against the profile, not just
+        the one that triggered it.
 
         MUST be called while holding self._state_lock!
         """
@@ -152,11 +152,12 @@ class ForemanEngine:
         for incoming in self._state.components.values():
             existing = previous_state.get(incoming.name)
             if existing and incoming.lifecycle_state != existing.lifecycle_state:
+                target = self._locked_profile_target_state(self._current_profile, incoming.name)
                 expected = (
                     self._last_issued_command
                     and self._last_issued_command.component.name == incoming.name
                     and self._last_issued_command.goal_state == incoming.lifecycle_state
-                )
+                ) or (target is not None and incoming.lifecycle_state == target)
                 if not expected:
                     unexpected_changes.append(
                         (
@@ -289,6 +290,22 @@ class ForemanEngine:
             if component_target.name not in self._state.components:
                 missing.append(component_target.name)
         return missing
+
+    def _locked_profile_target_state(
+        self, profile: SystemProfile, name: str
+    ) -> Optional[LifecycleState]:
+        """
+        Return a component's target state in the profile, or None if it's not targeted.
+
+        MUST be called while holding self._state_lock!
+        """
+        targets = (
+            profile.hardware_targets + profile.controller_targets + profile.lifecycle_node_targets
+        )
+        for target in targets:
+            if target.name == name:
+                return target.lifecycle_state
+        return None
 
     def _locked_profile_mismatches(self, profile: SystemProfile) -> List[str]:
         """

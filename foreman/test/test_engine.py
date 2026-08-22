@@ -233,15 +233,13 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     every change here comes from outside Foreman.
     """
     engine = _prepare_engine(hardware_and_controller_config)
+    engine.request_profile("running")
 
-    # hw1 comes up first, then ctrl1 -- realistic bring-up order
+    # both reach "running" directly -- matching the target is expected,
+    # regardless of the exact commanded step
     hw1_active = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
     ctrl1_active = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
-    engine.set_system_state(
-        [hw1_active, Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)]
-    )
     engine.set_system_state([hw1_active, ctrl1_active])
-    engine.request_profile("running")
     assert engine.get_engine_snapshot().profile == "running"
 
     # hw1 deactivated directly, taking ctrl1 down with it -- lands on a known
