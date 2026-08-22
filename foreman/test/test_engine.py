@@ -14,7 +14,7 @@ from foreman.types import (
 )
 
 
-def _ready_engine(config: ParsedScenario) -> ForemanEngine:
+def _prepare_engine(config: ParsedScenario) -> ForemanEngine:
     """
     Engine ready for request_profile(), with every tracked component UNCONFIGURED.
 
@@ -58,7 +58,7 @@ def minimal_foreman_config():
 
 
 def test_engine_error_and_abort(minimal_foreman_config):
-    engine = _ready_engine(minimal_foreman_config)
+    engine = _prepare_engine(minimal_foreman_config)
 
     ERROR_MSG = "Hardware 'hw1' rejected configuration!"
 
@@ -90,7 +90,7 @@ def test_engine_error_and_abort(minimal_foreman_config):
 
 
 def test_set_system_state_expected_transition(minimal_foreman_config):
-    engine = _ready_engine(minimal_foreman_config)
+    engine = _prepare_engine(minimal_foreman_config)
     engine.request_profile("active_profile")
 
     # verify planner issues command
@@ -181,7 +181,7 @@ def test_profile_rejects_missing_lifecycle_node(lifecycle_foreman_config):
 
 def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
     """Engine accepts expected lifecycle node state change without error."""
-    engine = _ready_engine(lifecycle_foreman_config)
+    engine = _prepare_engine(lifecycle_foreman_config)
     engine.request_profile("active_profile")
 
     # Planner issues a command
