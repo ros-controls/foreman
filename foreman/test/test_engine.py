@@ -126,28 +126,46 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
     assert snapshot.at_profile is True
 
 
-def test_no_error_for_unexpected_change_while_still_driving(minimal_foreman_config):
-    """No error while still driving toward a profile, even on an unexpected change."""
-    engine = _prepare_engine(minimal_foreman_config)
-    engine.request_profile("active_profile")
-    engine.get_next_transition()  # issues hw1 -> INACTIVE
+def test_unrelated_component_change_flagged_even_while_driving(hardware_and_controller_config):
+    """An unexpected change to a component not being driven is still an error."""
+    lock = threading.Lock()
+    engine = ForemanEngine(hardware_and_controller_config, lock)
 
-    # hw1 jumps to FINALIZED instead, skipping the INACTIVE step just issued and
-    # not matching "active_profile" either
-    comp1_jumped = Component("hw1", ComponentType.HARDWARE, LifecycleState.FINALIZED)
-    response = engine.set_system_state([comp1_jumped])
+    # ctrl1 already active and settled; hw1 still needs driving
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
+        ]
+    )
+    engine.request_profile("running")
 
-    assert response.success is True
-    assert engine.get_engine_snapshot().error.is_error is False
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.component.name == "hw1"
+
+    # hw1 takes its expected step, but ctrl1 crashes -- unrelated to what's being driven
+    response = engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, cmd.goal_state),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
+        ]
+    )
+
+    assert response.success is False
+    assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
+    assert "ctrl1" in response.error.component_names
+    assert "hw1" not in response.error.component_names
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
-    engine = _prepare_engine(minimal_foreman_config)
-    engine.request_profile("active_profile")
+    lock = threading.Lock()
+    engine = ForemanEngine(minimal_foreman_config, lock)
 
-    # reaches active state
+    # start in active state
     comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
     engine.set_system_state([comp1])
+    engine.request_profile("active_profile")
 
     # verify we are at profile and no commands are active
     assert engine.is_at_profile is True
@@ -337,12 +355,13 @@ def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
 
 def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
     """Engine detects unexpected lifecycle node state drop."""
-    engine = _prepare_engine(lifecycle_foreman_config)
-    engine.request_profile("active_profile")
+    lock = threading.Lock()
+    engine = ForemanEngine(lifecycle_foreman_config, lock)
 
     # Start at profile
     active = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
     engine.set_system_state([active])
+    engine.request_profile("active_profile")
     assert engine.is_at_profile is True
 
     # Simulate unprompted lifecycle node crash
