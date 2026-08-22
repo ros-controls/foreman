@@ -14,6 +14,35 @@ from foreman.types import (
 )
 
 
+def _ready_engine(config: ParsedScenario) -> ForemanEngine:
+    """
+    Engine ready for request_profile(), with every tracked component UNCONFIGURED.
+
+    request_profile() needs at least one observation before it accepts anything --
+    this establishes that baseline so a test can request a profile first, then
+    simulate the state changes that follow.
+    """
+    engine = ForemanEngine(config, threading.Lock())
+
+    controllers = config.tracked_components - set(config.hardware) - set(config.lifecycle_nodes)
+    components = (
+        [
+            Component(name, ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)
+            for name in config.hardware
+        ]
+        + [
+            Component(name, ComponentType.LIFECYCLE_NODE, LifecycleState.UNCONFIGURED)
+            for name in config.lifecycle_nodes
+        ]
+        + [
+            Component(name, ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
+            for name in controllers
+        ]
+    )
+    engine.set_system_state(components)
+    return engine
+
+
 @pytest.fixture
 def minimal_foreman_config():
     profile = SystemProfile(
@@ -29,15 +58,9 @@ def minimal_foreman_config():
 
 
 def test_engine_error_and_abort(minimal_foreman_config):
-    lock = threading.Lock()
-    engine = ForemanEngine(minimal_foreman_config, lock)
+    engine = _ready_engine(minimal_foreman_config)
 
     ERROR_MSG = "Hardware 'hw1' rejected configuration!"
-
-    # initialize
-    initial_components = [Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)]
-    response = engine.set_system_state(initial_components)
-    assert response.success is True
 
     # profile to activate comes
     response = engine.request_profile("active_profile")
@@ -67,12 +90,7 @@ def test_engine_error_and_abort(minimal_foreman_config):
 
 
 def test_set_system_state_expected_transition(minimal_foreman_config):
-    lock = threading.Lock()
-    engine = ForemanEngine(minimal_foreman_config, lock)
-
-    # initialize unconfigured
-    comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)
-    engine.set_system_state([comp1])
+    engine = _ready_engine(minimal_foreman_config)
     engine.request_profile("active_profile")
 
     # verify planner issues command
@@ -163,11 +181,7 @@ def test_profile_rejects_missing_lifecycle_node(lifecycle_foreman_config):
 
 def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
     """Engine accepts expected lifecycle node state change without error."""
-    lock = threading.Lock()
-    engine = ForemanEngine(lifecycle_foreman_config, lock)
-
-    initial = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.UNCONFIGURED)
-    engine.set_system_state([initial])
+    engine = _ready_engine(lifecycle_foreman_config)
     engine.request_profile("active_profile")
 
     # Planner issues a command
