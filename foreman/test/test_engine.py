@@ -128,12 +128,8 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
 
 def test_no_error_for_unexpected_change_while_still_driving(minimal_foreman_config):
     """No error while still driving toward a profile, even on an unexpected change."""
-    lock = threading.Lock()
-    engine = ForemanEngine(minimal_foreman_config, lock)
-
-    comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)
+    engine = _prepare_engine(minimal_foreman_config)
     engine.request_profile("active_profile")
-    engine.set_system_state([comp1])
     engine.get_next_transition()  # issues hw1 -> INACTIVE
 
     # hw1 jumps to FINALIZED instead, skipping the INACTIVE step just issued and
@@ -146,12 +142,11 @@ def test_no_error_for_unexpected_change_while_still_driving(minimal_foreman_conf
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
-    lock = threading.Lock()
-    engine = ForemanEngine(minimal_foreman_config, lock)
-
-    # start in active state
-    comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    engine = _prepare_engine(minimal_foreman_config)
     engine.request_profile("active_profile")
+
+    # reaches active state
+    comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
     engine.set_system_state([comp1])
 
     # verify we are at profile and no commands are active
@@ -186,11 +181,10 @@ def test_profile_follows_observed_state_after_deactivate_and_reactivate(minimal_
     Deactivating hw1 outside Foreman drops the profile to 'None'. Reactivating
     it brings the profile back on its own, with no new request_profile() call.
     """
-    lock = threading.Lock()
-    engine = ForemanEngine(minimal_foreman_config, lock)
+    engine = _prepare_engine(minimal_foreman_config)
+    engine.request_profile("active_profile")
 
     comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
-    engine.request_profile("active_profile")
     engine.set_system_state([comp1])
     assert engine.get_engine_snapshot().profile == "active_profile"
 
@@ -228,12 +222,11 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     Reactivating hw1 alone is not enough: the profile stays 'None' until ctrl1
     is reactivated too.
     """
-    lock = threading.Lock()
-    engine = ForemanEngine(hardware_and_controller_config, lock)
+    engine = _prepare_engine(hardware_and_controller_config)
+    engine.request_profile("running")
 
     hw1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
     ctrl1 = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
-    engine.request_profile("running")
     engine.set_system_state([hw1, ctrl1])
     assert engine.get_engine_snapshot().profile == "running"
 
@@ -254,12 +247,11 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
 
 def test_error_clears_once_state_matches_a_profile_again(hardware_and_controller_config):
     """Error clears on its own once state matches a profile again, with no request_profile() call."""
-    lock = threading.Lock()
-    engine = ForemanEngine(hardware_and_controller_config, lock)
+    engine = _prepare_engine(hardware_and_controller_config)
+    engine.request_profile("running")
 
     hw1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
     ctrl1 = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
-    engine.request_profile("running")
     engine.set_system_state([hw1, ctrl1])
 
     # ctrl1 dropped unexpectedly
@@ -345,12 +337,11 @@ def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
 
 def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
     """Engine detects unexpected lifecycle node state drop."""
-    lock = threading.Lock()
-    engine = ForemanEngine(lifecycle_foreman_config, lock)
+    engine = _prepare_engine(lifecycle_foreman_config)
+    engine.request_profile("active_profile")
 
     # Start at profile
     active = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
-    engine.request_profile("active_profile")
     engine.set_system_state([active])
     assert engine.is_at_profile is True
 
