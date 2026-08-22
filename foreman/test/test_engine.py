@@ -130,32 +130,37 @@ def test_unrelated_component_change_flagged_even_while_driving(hardware_and_cont
     """An unexpected change to a component not being driven is still an error."""
     engine = _prepare_engine(hardware_and_controller_config)
 
-    # ctrl1 already active and settled; hw1 still needs driving
+    # hw1 already active and settled; ctrl1 still needs driving
     engine.set_system_state(
         [
-            Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED),
-            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
         ]
     )
     engine.request_profile("running")
 
     cmd = engine.get_next_transition()
     assert cmd is not None
-    assert cmd.component.name == "hw1"
+    assert cmd.component.name == "ctrl1"
 
-    # hw1 takes its expected step, but ctrl1 crashes -- unrelated to what's being driven
+    # ctrl1 takes its expected step (configure), but hw1 crashes -- unrelated to
+    # what's being driven. ctrl1 lands on INACTIVE either way, since it can't
+    # reach ACTIVE while hw1 isn't.
     response = engine.set_system_state(
         [
-            Component("hw1", ComponentType.HARDWARE, cmd.goal_state),
-            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED),
+            Component("ctrl1", ComponentType.CONTROLLER, cmd.goal_state),
         ]
     )
 
     assert response.success is False
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
-    assert "ctrl1" in response.error.component_names
-    assert "hw1" not in response.error.component_names
-    assert engine.get_engine_snapshot().error.is_error is True
+    assert "hw1" in response.error.component_names
+    assert "ctrl1" not in response.error.component_names
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.error.is_error is True
+    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
+    assert snapshot.error.components == ["hw1"]
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
