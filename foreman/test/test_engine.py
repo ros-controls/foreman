@@ -107,9 +107,23 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
     assert response.success is True
     assert response.error is None
 
-    # verify no errors were triggered in snapshot
+    # still driving toward "active_profile" -- one more step needed (INACTIVE -> ACTIVE)
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
+    assert snapshot.profile == "active_profile"
+    assert snapshot.at_profile is False
+
+    # last step: reaches the target
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.goal_state == LifecycleState.ACTIVE
+    comp1_active = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
+    engine.set_system_state([comp1_active])
+
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.error.is_error is False
+    assert snapshot.profile == "active_profile"
+    assert snapshot.at_profile is True
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
@@ -195,6 +209,24 @@ def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
     response = engine.set_system_state([updated])
     assert response.success is True
     assert response.error is None
+
+    # still driving toward "active_profile" -- one more step needed (INACTIVE -> ACTIVE)
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.error.is_error is False
+    assert snapshot.profile == "active_profile"
+    assert snapshot.at_profile is False
+
+    # last step: reaches the target
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.goal_state == LifecycleState.ACTIVE
+    active = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
+    engine.set_system_state([active])
+
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.error.is_error is False
+    assert snapshot.profile == "active_profile"
+    assert snapshot.at_profile is True
 
 
 def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
