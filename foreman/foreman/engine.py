@@ -252,11 +252,7 @@ class ForemanEngine:
 
     def _locked_matching_profile_name(self) -> str:
         """
-        Find the configured profile that the live observed state matches.
-
-        A profile matches when every one of its declared targets is present in
-        the observed state at exactly its declared lifecycle state. Returns
-        "None" if no profile matches.
+        Find the configured profile that the live observed state matches, or "None".
 
         MUST be called while holding self._state_lock!
         """
