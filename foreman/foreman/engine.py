@@ -92,7 +92,6 @@ class ForemanEngine:
         with self._state_lock:
             self._error_state = error
             self._last_issued_command = None
-            self._locked_abort_transition()
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
         """Calculate the next step toward the profile."""
@@ -132,20 +131,19 @@ class ForemanEngine:
         """
         Check the live state against the configured profiles and update the error.
 
-        Clears a stale error once the live state matches a configured profile
-        again. Raises a new error if a component changes to anything other
-        than what Foreman itself last commanded or its own profile target,
-        at any point a profile is targeted -- not just mid-transition. Also
-        raises an error if a required component vanishes. The error lists
-        every component currently mismatched against the profile, not just
-        the one that triggered it.
+        Refreshes an active error's component list on every call, clearing
+        it once every targeted component matches its profile target again.
+        Raises a new error if a component changes to anything other than
+        what Foreman itself last commanded or its own profile target, at
+        any point a profile is targeted -- not just mid-transition. Also
+        raises an error if a required component vanishes.
 
         MUST be called while holding self._state_lock!
         """
-        if self._locked_matching_profile_name() != "None":
-            self._error_state = None
+        if self._error_state:
+            return self._locked_recheck_error()
 
-        if self._error_state or not self._current_profile:
+        if not self._current_profile:
             return ForemanResponse(True, "System state observed.")
 
         unexpected_changes = []
@@ -187,8 +185,31 @@ class ForemanEngine:
             component_names=self._locked_profile_mismatches(self._current_profile),
         )
         self._last_issued_command = None
-        self._locked_abort_transition()
 
+        return ForemanResponse(
+            success=False, message="Unexpected system state.", error=self._error_state
+        )
+
+    def _locked_recheck_error(self) -> ForemanResponse:
+        """
+        Refresh the active error against the current profile's live mismatches.
+
+        Clears the error once every targeted component matches again.
+        MUST be called while holding self._state_lock!
+        """
+        if not self._current_profile:
+            return ForemanResponse(False, "Unexpected system state.", error=self._error_state)
+
+        mismatches = self._locked_profile_mismatches(self._current_profile)
+        if not mismatches:
+            self._error_state = None
+            return ForemanResponse(True, "System state observed.")
+
+        self._error_state = ForemanError(
+            category=self._error_state.category,
+            message=self._error_state.message,
+            component_names=mismatches,
+        )
         return ForemanResponse(
             success=False, message="Unexpected system state.", error=self._error_state
         )
@@ -210,7 +231,7 @@ class ForemanEngine:
             return ForemanSnapshot(
                 profile=(
                     self._current_profile.name
-                    if self._current_profile
+                    if self._current_profile and not self._error_state
                     else self._locked_matching_profile_name()
                 ),
                 ready=self._is_ready,
@@ -391,14 +412,3 @@ class ForemanEngine:
                         f"but it is {state_str} and not targeted in this profile"
                     )
         return errors
-
-    def _locked_abort_transition(self):
-        """
-        Abort any ongoing transitions.
-
-        MUST be called while holding self._state_lock!
-        """
-        if not self._is_ready:
-            return
-
-        self._current_profile = None

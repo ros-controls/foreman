@@ -260,7 +260,7 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     assert snapshot.profile == "None"
     assert snapshot.error.is_error is True
     assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
-    assert set(snapshot.error.components) == {"hw1", "ctrl1"}
+    assert snapshot.error.components == ["ctrl1"]
 
     # ctrl1 reactivated too -- both match "running" again, profile and error recover
     engine.set_system_state([hw1_active, ctrl1_active])
