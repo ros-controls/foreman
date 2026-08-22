@@ -109,11 +109,10 @@ class ForemanEngine:
 
     def set_system_state(self, components: List[Component]) -> ForemanResponse:
         """
-        Set internal system state to that which is observed.
+        Set internal system state to that which is observed, and update the error.
 
         Called for every update from the /activity topic and from a lifecycle
-        node's /transition_event. Checks the resulting profile and updates the
-        error accordingly.
+        node's /transition_event.
         """
         tracked_components = [c for c in components if c.name in self._config.tracked_components]
 
@@ -127,16 +126,17 @@ class ForemanEngine:
             if not was_ready:
                 return ForemanResponse(True, "System state observed.")
 
-            return self._locked_check_profile(previous_state)
+            return self.check_profile(previous_state)
 
-    def _locked_check_profile(self, previous_state: Dict[str, Component]) -> ForemanResponse:
+    def check_profile(self, previous_state: Dict[str, Component]) -> ForemanResponse:
         """
         Check the live state against the configured profiles and update the error.
 
         Clears a stale error once the live state matches a configured profile
-        again. While driving toward a requested profile, raises a new error on
-        an unexpected component state change (one that doesn't match the last
-        command Foreman itself issued) or a required component vanishing.
+        again. While a profile is targeted, raises a new error if a component
+        ends up in anything other than what Foreman itself last commanded it
+        to -- whether that's mid-transition or the final step landing in the
+        wrong state -- or if a required component vanishes.
 
         MUST be called while holding self._state_lock!
         """
@@ -199,10 +199,20 @@ class ForemanEngine:
         return self._is_ready
 
     def get_engine_snapshot(self) -> ForemanSnapshot:
-        """Return a simplified snapshot of the system state."""
+        """
+        Return a simplified snapshot of the system state.
+
+        While driving toward a requested profile, "profile" is that target's
+        name, even mid-transition. Otherwise, it's the profile that matches
+        the live observed state, or "None" if none matches.
+        """
         with self._state_lock:
             return ForemanSnapshot(
-                profile=self._locked_current_profile_name(),
+                profile=(
+                    self._current_profile.name
+                    if self._current_profile
+                    else self._locked_matching_profile_name()
+                ),
                 ready=self._is_ready,
                 at_profile=self._locked_is_at_profile(),
                 error=ErrorSnapshot(
@@ -239,20 +249,6 @@ class ForemanEngine:
 
         # If planner returns nothing, we have reached the target profile
         return self._planner.get_next_transition(self._state, self._current_profile) is None
-
-    def _locked_current_profile_name(self) -> str:
-        """
-        Name of the profile Foreman currently reports.
-
-        While driving toward a requested profile, returns that profile's name,
-        even mid-transition. Otherwise, returns the profile that matches the
-        live observed state, or "None" if none matches.
-
-        MUST be called while holding self._state_lock!
-        """
-        if self._current_profile:
-            return self._current_profile.name
-        return self._locked_matching_profile_name()
 
     def _locked_matching_profile_name(self) -> str:
         """
