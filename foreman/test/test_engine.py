@@ -130,11 +130,11 @@ def test_unrelated_component_change_flagged_even_while_driving(hardware_and_cont
     """An unexpected change to a component not being driven is still an error."""
     engine = _prepare_engine(hardware_and_controller_config)
 
-    # hw1 already active and settled; ctrl1 still needs driving
+    # hw1 already active and settled; ctrl1 configured, one step from active
     engine.set_system_state(
         [
             Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
-            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
         ]
     )
     engine.request_profile("running")
@@ -142,25 +142,29 @@ def test_unrelated_component_change_flagged_even_while_driving(hardware_and_cont
     cmd = engine.get_next_transition()
     assert cmd is not None
     assert cmd.component.name == "ctrl1"
+    assert cmd.goal_state == LifecycleState.ACTIVE
 
-    # ctrl1 takes its expected step (configure), but hw1 crashes -- unrelated to
-    # what's being driven. ctrl1 lands on INACTIVE either way, since it can't
-    # reach ACTIVE while hw1 isn't.
+    # hw1 crashes -- unrelated to what's being driven. ctrl1 can't activate
+    # without it and stays at INACTIVE, short of its commanded goal.
     response = engine.set_system_state(
         [
             Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED),
-            Component("ctrl1", ComponentType.CONTROLLER, cmd.goal_state),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
         ]
     )
 
     assert response.success is False
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     assert "hw1" in response.error.component_names
-    assert "ctrl1" not in response.error.component_names
+    assert "ctrl1" in response.error.component_names
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
     assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
-    assert snapshot.error.components == ["hw1"]
+    assert set(snapshot.error.components) == {"hw1", "ctrl1"}
+
+    components_by_name = {c.name: c for c in snapshot.components}
+    assert components_by_name["hw1"].lifecycle_state == LifecycleState.UNCONFIGURED
+    assert components_by_name["ctrl1"].lifecycle_state == LifecycleState.INACTIVE
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
@@ -229,33 +233,21 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     every change here comes from outside Foreman.
     """
     engine = _prepare_engine(hardware_and_controller_config)
-    engine.request_profile("running")
 
-    # drives up from scratch: hw1 first, then ctrl1, one step at a time
-    cmd = engine.get_next_transition()
-    assert cmd.component.name == "hw1"
-    hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
-    ctrl1_unconfigured = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
-    engine.set_system_state([hw1_inactive, ctrl1_unconfigured])
-
-    cmd = engine.get_next_transition()
-    assert cmd.component.name == "hw1"
+    # hw1 comes up first, then ctrl1 -- realistic bring-up order
     hw1_active = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
-    engine.set_system_state([hw1_active, ctrl1_unconfigured])
-
-    cmd = engine.get_next_transition()
-    assert cmd.component.name == "ctrl1"
-    ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
-    engine.set_system_state([hw1_active, ctrl1_inactive])
-
-    cmd = engine.get_next_transition()
-    assert cmd.component.name == "ctrl1"
     ctrl1_active = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
+    engine.set_system_state(
+        [hw1_active, Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)]
+    )
     engine.set_system_state([hw1_active, ctrl1_active])
+    engine.request_profile("running")
     assert engine.get_engine_snapshot().profile == "running"
 
     # hw1 deactivated directly, taking ctrl1 down with it -- lands on a known
     # profile ("all_inactive"), but it's still unexpected: nobody requested it
+    hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
+    ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     response = engine.set_system_state([hw1_inactive, ctrl1_inactive])
     assert response.success is False
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE

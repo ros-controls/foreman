@@ -136,7 +136,9 @@ class ForemanEngine:
         again. Raises a new error if a component changes to anything other
         than what Foreman itself last commanded, at any point a profile is
         targeted -- not just mid-transition. Also raises an error if a
-        required component vanishes.
+        required component vanishes. The error lists every component
+        currently mismatched against the profile, not just the one that
+        triggered it.
 
         MUST be called while holding self._state_lock!
         """
@@ -170,21 +172,18 @@ class ForemanEngine:
             return ForemanResponse(True, "System state observed with no anomalies.")
 
         error_msgs = []
-        error_components = []
 
         if missing_components:
             error_msgs.append(f"Required components vanished from /activity: {missing_components}")
-            error_components.extend(missing_components)
 
         if unexpected_changes:
             msgs = [f"{name} ({old}->{new})" for name, old, new in unexpected_changes]
             error_msgs.append(f"Unexpected state changes: {', '.join(msgs)}")
-            error_components.extend([change[0] for change in unexpected_changes])
 
         self._error_state = ForemanError(
             category=ForemanErrorCategory.UNEXPECTED_STATE,
             message="Aborting transition:\n  - " + "\n  - ".join(error_msgs),
-            component_names=list(set(error_components)),
+            component_names=self._locked_profile_mismatches(self._current_profile),
         )
         self._last_issued_command = None
         self._locked_abort_transition()
@@ -290,6 +289,22 @@ class ForemanEngine:
             if component_target.name not in self._state.components:
                 missing.append(component_target.name)
         return missing
+
+    def _locked_profile_mismatches(self, profile: SystemProfile) -> List[str]:
+        """
+        List components not at the profile's target state, including missing ones.
+
+        MUST be called while holding self._state_lock!
+        """
+        targets = (
+            profile.hardware_targets + profile.controller_targets + profile.lifecycle_node_targets
+        )
+        mismatches = []
+        for target in targets:
+            observed = self._state.components.get(target.name)
+            if observed is None or observed.lifecycle_state != target.lifecycle_state:
+                mismatches.append(target.name)
+        return mismatches
 
     def _locked_is_profile_available(self, profile: SystemProfile) -> bool:
         """
