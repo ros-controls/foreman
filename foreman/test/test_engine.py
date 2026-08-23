@@ -198,7 +198,7 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     assert "hw1" in snapshot.error.components
     assert snapshot.profile == "None"
 
-    # UNEXPECTED_STATE doesn't halt driving -- Foreman keeps trying to recover
+    # UNEXPECTED_STATE keeps Foreman trying to recover
     cmd = engine.get_next_transition()
     assert cmd is not None
     assert cmd.component.name == "hw1"
