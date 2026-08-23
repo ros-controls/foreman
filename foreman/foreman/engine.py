@@ -153,11 +153,12 @@ class ForemanEngine:
         """
         Check the live state against the configured profiles and update the error.
 
-        Refreshes an active error's component list on every call, clearing
+        Refreshes an active error's component list on every call. Clears
         it once every targeted component matches its profile target again.
-        Raises a new error if a component changes to anything other than
-        what Foreman itself last commanded or its own profile target, at
-        any point a profile is targeted -- not just mid-transition. Also
+
+        Raises a new error if a component changes to something other than
+        what Foreman commanded, or its own profile target. This applies
+        whenever a profile is targeted, not just mid-transition. Also
         raises an error if a required component vanishes.
 
         MUST be called while holding self._state_lock!
