@@ -79,7 +79,8 @@ def test_engine_error_and_abort(minimal_foreman_config):
     # system dropped the profile due to abort
     assert engine.is_at_profile is False
 
-    # planner outputs nothing
+    # EXECUTION halts driving, unlike UNEXPECTED_STATE -- a rejected
+    # command shouldn't be retried until explicitly re-requested
     assert engine.get_next_transition() is None
 
     # frontend will see the error and no active profile
@@ -196,8 +197,17 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     assert "hw1" in snapshot.error.components
     assert snapshot.profile == "None"
 
-    # verify planner halts
-    assert engine.get_next_transition() is None
+    # UNEXPECTED_STATE doesn't halt driving -- Foreman keeps trying to recover
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.component.name == "hw1"
+
+    # hw1 comes back up -- matches its profile target directly, error clears
+    engine.set_system_state([comp1])
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.error.is_error is False
+    assert snapshot.profile == "active_profile"
+    assert snapshot.at_profile is True
 
 
 @pytest.fixture
@@ -230,7 +240,9 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     requested it. Reactivating hw1 alone is not enough: the profile stays
     'None' until ctrl1 is reactivated too, at which point the error also
     clears on its own -- no request_profile() call after the initial one,
-    every change here comes from outside Foreman.
+    every change here comes from outside Foreman. Explicitly re-requesting
+    the target profile clears the error immediately too, even before the
+    components have recovered -- unlike the reactive recovery above.
     """
     engine = _prepare_engine(hardware_and_controller_config)
     engine.request_profile("running")
@@ -269,41 +281,24 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     assert snapshot.error.is_error is False
     assert snapshot.error.components == []
 
-
-def test_error_clears_once_state_matches_a_profile_again(hardware_and_controller_config):
-    """Error clears when the operator explicitly re-requests a profile, not just reactively."""
-    engine = _prepare_engine(hardware_and_controller_config)
-
-    hw1_active = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
-    ctrl1_active = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
-    engine.set_system_state([hw1_active, ctrl1_active])
-    engine.request_profile("running")
-
-    # both drop to inactive unexpectedly -- matches "all_inactive", but from outside
-    hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
-    ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
-    engine.set_system_state([hw1_inactive, ctrl1_inactive])
+    # both drop again, unexpectedly -- but this time, the operator explicitly
+    # re-requests "running" instead of waiting for a reactive recovery
+    response = engine.set_system_state([hw1_inactive, ctrl1_inactive])
+    assert response.success is False
+    assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
-    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
+    assert snapshot.profile == "all_inactive"
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
-    # operator explicitly re-requests "running" -- clears the error directly, not reactively
     response = engine.request_profile("running")
     assert response.success is True
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
     assert snapshot.profile == "running"
 
-    # drives back to "running", one component at a time
-    cmd = engine.get_next_transition()
-    assert cmd.component.name == "hw1"
-    engine.set_system_state([hw1_active, ctrl1_inactive])
-
-    cmd = engine.get_next_transition()
-    assert cmd.component.name == "ctrl1"
+    # both reach "running" directly -- matching the target is expected
     engine.set_system_state([hw1_active, ctrl1_active])
-
     snapshot = engine.get_engine_snapshot()
     assert snapshot.profile == "running"
     assert snapshot.at_profile is True

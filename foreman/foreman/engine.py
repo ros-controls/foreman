@@ -99,7 +99,10 @@ class ForemanEngine:
             return None
 
         with self._state_lock:
-            if not self._is_ready or self._error_state:
+            if not self._is_ready or (
+                self._error_state
+                and self._error_state.category != ForemanErrorCategory.UNEXPECTED_STATE
+            ):
                 return None
 
             cmd = self._planner.get_next_transition(self._state, self._current_profile)
