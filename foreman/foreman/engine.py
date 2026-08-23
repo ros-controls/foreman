@@ -112,6 +112,8 @@ class ForemanEngine:
         with self._state_lock:
             self._error_state = error
             self._last_issued_command = None
+            if error.category != ForemanErrorCategory.UNEXPECTED_STATE:
+                self._current_profile = None  # give up on the goal; only a new request retries
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
         """Calculate the next step toward the profile."""
@@ -119,10 +121,7 @@ class ForemanEngine:
             return None
 
         with self._state_lock:
-            if not self._is_ready or (
-                self._error_state
-                and self._error_state.category != ForemanErrorCategory.UNEXPECTED_STATE
-            ):
+            if not self._is_ready:
                 return None
 
             cmd = self._planner.get_next_transition(self._state, self._current_profile)
