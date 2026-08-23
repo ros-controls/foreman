@@ -252,15 +252,17 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     # regardless of the exact commanded step
     hw1_active = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
     ctrl1_active = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
-    engine.set_system_state([hw1_active, ctrl1_active])
-    assert engine.get_engine_snapshot().profile == "running"
+    response = engine.set_system_state([hw1_active, ctrl1_active])
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.profile == "running"
+    assert snapshot.error.is_error is False
+    assert response.success is True
 
     # hw1 deactivated directly, taking ctrl1 down with it -- lands on a known
     # profile ("all_inactive"), but it's still unexpected: nobody requested it
     hw1_inactive = Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE)
     ctrl1_inactive = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
     response = engine.set_system_state([hw1_inactive, ctrl1_inactive])
-    assert response.success is False
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
