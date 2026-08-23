@@ -72,18 +72,38 @@ class ForemanEngine:
                     + "\n".join(f"  - {msg}" for msg in unsatisfiable),
                 )
 
-            error_cleared_msg = "Error cleared on new profile. " if self._error_state else ""
-            self._error_state = None  # new profile received, clear error and try again.
+            had_error = self._error_state is not None
+            if (
+                self._error_state
+                and self._error_state.category != ForemanErrorCategory.UNEXPECTED_STATE
+            ):
+                self._error_state = None  # blocked category: only an explicit request can clear it
             self._last_issued_command = None
 
             # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._current_profile == Null.
             # Fix this so we log "Already at profile"
-            if self._current_profile == profile:
+            if self._current_profile == profile and not self._error_state:
                 if self._locked_is_at_profile():
                     return ForemanResponse(True, f"Already at profile '{profile_name}'.")
                 return ForemanResponse(True, f"Already transitioning to '{profile_name}'.")
 
             self._current_profile = profile
+
+            if self._error_state:
+                mismatches = self._locked_profile_mismatches(profile)
+                self._error_state = (
+                    None
+                    if not mismatches
+                    else ForemanError(
+                        category=self._error_state.category,
+                        message=self._error_state.message,
+                        component_names=mismatches,
+                    )
+                )
+
+            error_cleared_msg = (
+                "Error cleared on new profile. " if had_error and not self._error_state else ""
+            )
 
         return ForemanResponse(True, f"{error_cleared_msg}Profile '{profile_name}' accepted.")
 

@@ -241,9 +241,9 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     requested it. Reactivating hw1 alone is not enough: the profile stays
     'None' until ctrl1 is reactivated too, at which point the error also
     clears on its own -- no request_profile() call after the initial one,
-    every change here comes from outside Foreman. Explicitly re-requesting
-    the target profile clears the error immediately too, even before the
-    components have recovered -- unlike the reactive recovery above.
+    every change here comes from outside Foreman. Re-requesting the same
+    target profile doesn't clear the error either, since it's still
+    unsatisfied -- only the components actually matching it does.
     """
     engine = _prepare_engine(hardware_and_controller_config)
     engine.request_profile("running")
@@ -274,7 +274,7 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     snapshot = engine.get_engine_snapshot()
     assert snapshot.profile == "None"
     assert snapshot.error.is_error is True
-    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE
+    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
     assert snapshot.error.components == ["ctrl1"]
 
     # ctrl1 reactivated too -- both match "running" again, profile and error recover
@@ -284,8 +284,7 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     assert snapshot.error.is_error is False
     assert snapshot.error.components == []
 
-    # both drop again, unexpectedly -- but this time, the operator explicitly
-    # re-requests "running" instead of waiting for a reactive recovery
+    # both drop again, unexpectedly
     response = engine.set_system_state([hw1_inactive, ctrl1_inactive])
     assert response.success is False
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
@@ -294,11 +293,15 @@ def test_profile_stays_none_until_every_component_matches_again(hardware_and_con
     assert snapshot.profile == "all_inactive"
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
+    # explicit re-request doesn't clear an UNEXPECTED_STATE error either --
+    # only the live state actually matching the target does
     response = engine.request_profile("running")
     assert response.success is True
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.error.is_error is False
-    assert snapshot.profile == "running"
+    assert snapshot.error.is_error is True
+    assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
+    assert set(snapshot.error.components) == {"hw1", "ctrl1"}
+    assert snapshot.profile == "all_inactive"
 
     # both reach "running" directly -- matching the target is expected
     engine.set_system_state([hw1_active, ctrl1_active])
