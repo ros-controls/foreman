@@ -45,6 +45,10 @@ class ForemanEngine:
         """
         Request a new profile for the system.
 
+        Clears a blocked-category error outright. Recomputes an
+        UNEXPECTED_STATE error against the new target instead of
+        clearing it blindly.
+
         Returns: (success, message)
         """
         profile = self._config.profiles.get(profile_name)
@@ -108,7 +112,12 @@ class ForemanEngine:
         return ForemanResponse(True, f"{error_cleared_msg}Profile '{profile_name}' accepted.")
 
     def abort_profile(self, error: ForemanError):
-        """Aborts the current profile by stopping transitions."""
+        """
+        Aborts the current profile by stopping transitions.
+
+        Also gives up the target profile, unless the error is
+        UNEXPECTED_STATE.
+        """
         with self._state_lock:
             self._error_state = error
             self._last_issued_command = None
@@ -246,9 +255,10 @@ class ForemanEngine:
         """
         Return a simplified snapshot of the system state.
 
-        While driving toward a requested profile, "profile" is that target's
-        name, even mid-transition. Otherwise, it's the profile that matches
-        the live observed state, or "None" if none matches.
+        While driving toward a requested profile with no error, "profile"
+        is that target's name, even mid-transition. Otherwise, it's the
+        profile that matches the live observed state, or "None" if none
+        matches.
         """
         with self._state_lock:
             return ForemanSnapshot(

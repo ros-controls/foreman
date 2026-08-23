@@ -126,7 +126,9 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
     assert snapshot.at_profile is True
 
 
-def test_unrelated_component_change_flagged_even_while_driving(hardware_and_controller_config):
+def test_when_hardware_error_and_controller_can_not_transition_mid_transition_expect_error_state_and_none_state(
+    hardware_and_controller_config,
+):
     """An unexpected change to a component not being driven is still an error."""
     engine = _prepare_engine(hardware_and_controller_config)
 
@@ -231,7 +233,9 @@ def hardware_and_controller_config():
     )
 
 
-def test_profile_stays_none_until_every_component_matches_again(hardware_and_controller_config):
+def test_when_hardware_and_controller_recover_separately_expect_error_and_known_state_when_valid_and_error_and_none_when_invalid_all_ok_when_both_reach_target_profile(
+    hardware_and_controller_config,
+):
     """
     Profile returns only once every tracked component matches again.
 
