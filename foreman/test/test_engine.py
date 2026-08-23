@@ -79,8 +79,7 @@ def test_engine_error_and_abort(minimal_foreman_config):
     # system dropped the profile due to abort
     assert engine.is_at_profile is False
 
-    # EXECUTION halts driving, unlike UNEXPECTED_STATE -- a rejected
-    # command shouldn't be retried until explicitly re-requested
+    # a rejected command shouldn't be retried until explicitly re-requested
     assert engine.get_next_transition() is None
 
     # frontend will see the error and no active profile
