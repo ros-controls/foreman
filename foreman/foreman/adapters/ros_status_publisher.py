@@ -32,7 +32,6 @@ class RosStatusPublisher:
         msg.target_profile = snapshot.target_profile
         msg.current_profile = snapshot.current_profile
         msg.ready = snapshot.ready
-        msg.at_profile = snapshot.at_profile
         msg.error.is_error = snapshot.error.is_error
         msg.error.category = snapshot.error.category
         msg.error.message = snapshot.error.message

@@ -273,7 +273,6 @@ class ForemanEngine:
                 target_profile=(self._target_profile.name if self._target_profile else "None"),
                 current_profile=self._current_profile,
                 ready=self._is_ready,
-                at_profile=self._is_at_profile(),
                 error=ErrorSnapshot(
                     is_error=self._error_state is not None,
                     category=(
@@ -299,15 +298,13 @@ class ForemanEngine:
 
     def _is_at_profile(self) -> bool:
         """
-        Check if the target profile is reached.
+        Check if the live state matches the target profile.
 
         MUST be called while holding self._state_lock!
         """
-        if not self._is_ready or not self._target_profile:
-            return False
-
-        # If planner returns nothing, we have reached the target profile
-        return self._planner.get_next_transition(self._state, self._target_profile) is None
+        return (
+            self._target_profile is not None and self._current_profile == self._target_profile.name
+        )
 
     def _matching_profile_name(self) -> str:
         """

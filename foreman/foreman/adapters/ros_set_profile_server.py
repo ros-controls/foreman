@@ -83,7 +83,9 @@ class RosSetProfileServer:
                     self._node.get_logger().warning(f"{self.logger_prefix} {response.message}")
                     return response
 
-                if snapshot.at_profile:
+                if snapshot.target_profile != "None" and (
+                    snapshot.target_profile == snapshot.current_profile
+                ):
                     response.success = True
                     response.message = f"Profile '{profile_name}' reached."
                     self._node.get_logger().info(f"{self.logger_prefix} {response.message}")

@@ -25,7 +25,6 @@ def _snapshot(
     target_profile="force_ctrl",
     current_profile=None,
     ready=True,
-    at_profile=False,
     error=None,
     components=None,
 ):
@@ -38,7 +37,6 @@ def _snapshot(
         target_profile=target_profile,
         current_profile=current_profile if current_profile is not None else target_profile,
         ready=ready,
-        at_profile=at_profile,
         error=error,
         components=components if components is not None else [],
         all_profiles=[],
@@ -143,7 +141,7 @@ class TestRosSetProfileActionServer(unittest.TestCase):
         # is_active stays True on shutdown, so without _shutting_down the wait
         # loop never ends and the process cannot exit.
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=False)
+        self.engine.get_engine_snapshot.return_value = _snapshot()
         server = self._server()
         server.request_shutdown()
 
@@ -214,9 +212,9 @@ class TestRosSetProfileActionServer(unittest.TestCase):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         # two polls in transition, then arrived
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_profile=False),
-            _snapshot(at_profile=False),
-            _snapshot(at_profile=True),
+            _snapshot(current_profile="None"),
+            _snapshot(current_profile="None"),
+            _snapshot(),
         ]
         handle = _goal_handle()
 
@@ -230,7 +228,7 @@ class TestRosSetProfileActionServer(unittest.TestCase):
 
     def test_successful_profile_releases_execution_lock(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=True)
+        self.engine.get_engine_snapshot.return_value = _snapshot()
         execution_lock = threading.Lock()
         handle = _goal_handle()
 
@@ -243,8 +241,8 @@ class TestRosSetProfileActionServer(unittest.TestCase):
     def test_feedback_carries_current_error_state(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_profile=False),
-            _snapshot(at_profile=True),
+            _snapshot(current_profile="None"),
+            _snapshot(),
         ]
         handle = _goal_handle()
 
@@ -257,7 +255,7 @@ class TestRosSetProfileActionServer(unittest.TestCase):
     def test_engine_error_aborts_and_reports_it(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_profile=False),
+            _snapshot(current_profile="None"),
             _snapshot(
                 error=_error_snapshot(message="Service rejected the transition."),
                 components=[_component("ctrl_a", LifecycleState.INACTIVE)],
@@ -278,7 +276,7 @@ class TestRosSetProfileActionServer(unittest.TestCase):
 
     def test_cancel_stops_waiting(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=False)
+        self.engine.get_engine_snapshot.return_value = _snapshot()
         handle = _goal_handle()
         handle.is_cancel_requested = True
 
@@ -291,7 +289,7 @@ class TestRosSetProfileActionServer(unittest.TestCase):
 
     def test_inactive_profile_returns_without_terminal_call(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=False)
+        self.engine.get_engine_snapshot.return_value = _snapshot()
         handle = _goal_handle()
         handle.is_active = False
 
@@ -307,7 +305,7 @@ class TestRosSetProfileActionServer(unittest.TestCase):
         self.engine.request_profile.return_value = ForemanResponse(
             True, "Already at profile 'force_ctrl'."
         )
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=True)
+        self.engine.get_engine_snapshot.return_value = _snapshot()
         handle = _goal_handle()
 
         result = self._server()._execute(handle)
