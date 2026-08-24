@@ -8,7 +8,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from foreman.engine import ForemanEngine
-from foreman.types import Component, ComponentType, LifecycleState
+from foreman.types import Component, ComponentType, ForemanErrorCategory, LifecycleState
 
 
 class ComponentStateMonitor:
@@ -188,6 +188,11 @@ class ComponentStateMonitor:
             )
 
         if not response.success and response.error:
-            self._node.get_logger().error(
+            log = (
+                self._node.get_logger().warning
+                if response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
+                else self._node.get_logger().error
+            )
+            log(
                 f"{self._logger_prefix} [{response.error.category.value}] \n{response.error.message}"
             )
