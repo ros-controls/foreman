@@ -30,7 +30,7 @@ class ForemanEngine:
         self._state = SystemState()
         self._state_lock = state_lock
 
-        self._current_profile = None
+        self._target_profile = None
         self._is_ready = False  # when we get first /activity reading
         self._error_state: Optional[ForemanError] = None
         self._last_issued_command: Optional[SystemTransitionCommand] = None
@@ -85,14 +85,14 @@ class ForemanEngine:
                 self._error_state = None  # blocked category: only an explicit request can clear it
             self._last_issued_command = None
 
-            # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._current_profile == Null.
+            # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._target_profile == Null.
             # Fix this so we log "Already at profile"
-            if self._current_profile == profile and not self._error_state:
+            if self._target_profile == profile and not self._error_state:
                 if self._is_at_profile():
                     return ForemanResponse(True, f"Already at profile '{profile_name}'.")
                 return ForemanResponse(True, f"Already transitioning to '{profile_name}'.")
 
-            self._current_profile = profile
+            self._target_profile = profile
             self._reached_target = self._is_at_profile()
 
             if self._error_state:
@@ -115,7 +115,7 @@ class ForemanEngine:
 
     def abort_profile(self, error: ForemanError):
         """
-        Aborts the current profile by stopping transitions.
+        Aborts the target profile by stopping transitions.
 
         Also gives up the target profile, unless the error is
         UNEXPECTED_STATE.
@@ -124,7 +124,7 @@ class ForemanEngine:
             self._error_state = error
             self._last_issued_command = None
             if error.category != ForemanErrorCategory.UNEXPECTED_STATE:
-                self._current_profile = None  # give up on the goal; only a new request retries
+                self._target_profile = None  # give up on the goal; only a new request retries
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
         """
@@ -134,16 +134,16 @@ class ForemanEngine:
         the live state later drifts away from it. Driving toward a
         target resumes only once it's requested again.
         """
-        if not self._current_profile:
+        if not self._target_profile:
             return None
 
         with self._state_lock:
-            if not self._is_ready or not self._current_profile:
+            if not self._is_ready or not self._target_profile:
                 return None
             if self._reached_target:
                 return None
 
-            cmd = self._planner.get_next_transition(self._state, self._current_profile)
+            cmd = self._planner.get_next_transition(self._state, self._target_profile)
             self._last_issued_command = cmd
             return cmd
 
@@ -188,14 +188,14 @@ class ForemanEngine:
         if self._error_state:
             return self._recheck_error()
 
-        if not self._current_profile:
+        if not self._target_profile:
             return ForemanResponse(True, "System state observed.")
 
         unexpected_changes = []
         for incoming in self._state.components.values():
             existing = previous_state.get(incoming.name)
             if existing and incoming.lifecycle_state != existing.lifecycle_state:
-                target = self._profile_target_state(self._current_profile, incoming.name)
+                target = self._profile_target_state(self._target_profile, incoming.name)
                 expected = (
                     self._last_issued_command
                     and self._last_issued_command.component.name == incoming.name
@@ -210,7 +210,7 @@ class ForemanEngine:
                         )
                     )
 
-        missing_components = self._missing_profile_components(self._current_profile)
+        missing_components = self._missing_profile_components(self._target_profile)
 
         if not unexpected_changes and not missing_components:
             return ForemanResponse(True, "System state observed with no anomalies.")
@@ -227,7 +227,7 @@ class ForemanEngine:
         self._error_state = ForemanError(
             category=ForemanErrorCategory.UNEXPECTED_STATE,
             message="Unexpected system state:\n  - " + "\n  - ".join(error_msgs),
-            component_names=self._profile_mismatches(self._current_profile),
+            component_names=self._profile_mismatches(self._target_profile),
         )
         self._last_issued_command = None
 
@@ -237,15 +237,15 @@ class ForemanEngine:
 
     def _recheck_error(self) -> ForemanResponse:
         """
-        Refresh the active error against the current profile's live mismatches.
+        Refresh the active error against the target profile's live mismatches.
 
         Clears the error once every targeted component matches again.
         MUST be called while holding self._state_lock!
         """
-        if not self._current_profile:
+        if not self._target_profile:
             return ForemanResponse(False, "Unexpected system state.", error=self._error_state)
 
-        mismatches = self._profile_mismatches(self._current_profile)
+        mismatches = self._profile_mismatches(self._target_profile)
         if not mismatches:
             self._error_state = None
             return ForemanResponse(True, "System state observed.")
@@ -276,8 +276,8 @@ class ForemanEngine:
         with self._state_lock:
             return ForemanSnapshot(
                 profile=(
-                    self._current_profile.name
-                    if self._current_profile and not self._error_state
+                    self._target_profile.name
+                    if self._target_profile and not self._error_state
                     else self._matching_profile_name()
                 ),
                 ready=self._is_ready,
@@ -307,15 +307,15 @@ class ForemanEngine:
 
     def _is_at_profile(self) -> bool:
         """
-        Check if the current profile is reached.
+        Check if the target profile is reached.
 
         MUST be called while holding self._state_lock!
         """
-        if not self._is_ready or not self._current_profile:
+        if not self._is_ready or not self._target_profile:
             return False
 
         # If planner returns nothing, we have reached the target profile
-        return self._planner.get_next_transition(self._state, self._current_profile) is None
+        return self._planner.get_next_transition(self._state, self._target_profile) is None
 
     def _matching_profile_name(self) -> str:
         """

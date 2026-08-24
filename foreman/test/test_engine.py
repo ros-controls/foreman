@@ -159,7 +159,7 @@ def test_when_hardware_error_and_controller_can_not_transition_mid_transition_ex
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     assert "hw1" in response.error.component_names
     assert "ctrl1" in response.error.component_names
-    assert engine._current_profile.name == "running"
+    assert engine._target_profile.name == "running"
     assert engine.get_next_transition() is not None
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
