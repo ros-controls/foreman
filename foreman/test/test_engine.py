@@ -391,6 +391,45 @@ def test_when_requesting_profile_while_parked_at_a_different_valid_profile_expec
     assert cmd.goal_state == LifecycleState.ACTIVE
 
 
+def test_when_targeted_component_becomes_finalized_expect_current_profile_does_not_match():
+    """A component reporting FINALIZED doesn't count toward matching any profile."""
+    running = SystemProfile(
+        "running",
+        hardware_targets=[Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        lifecycle_node_targets=[
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
+        ],
+    )
+    config = ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        profiles={"running": running},
+        lifecycle_nodes=["robot_manager"],
+        tracked_components={"hw1", "robot_manager"},
+    )
+    engine = _prepare_engine(config)
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE),
+        ]
+    )
+    engine.request_profile("running")
+    assert engine.get_engine_snapshot().current_profile == "running"
+
+    # robot_manager disconnects -- reported as FINALIZED, the same way
+    # component_state_monitor does when its transition_event publisher disappears
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.FINALIZED),
+        ]
+    )
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "None"
+
+
 # --- Lifecycle Node Engine Tests ---
 
 
