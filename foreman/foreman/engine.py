@@ -31,6 +31,7 @@ class ForemanEngine:
         self._state_lock = state_lock
 
         self._target_profile = None
+        self._current_profile = "None"  # name of the profile the live state matches
         self._is_ready = False  # when we get first /activity reading
         self._error_state: Optional[ForemanError] = None
         self._last_issued_command: Optional[SystemTransitionCommand] = None
@@ -159,6 +160,7 @@ class ForemanEngine:
         with self._state_lock:
             previous_state = self._state.components
             self._state.components = {comp.name: comp for comp in tracked_components}
+            self._current_profile = self._matching_profile_name()
 
             was_ready = self._is_ready
             self._is_ready = True
@@ -265,21 +267,11 @@ class ForemanEngine:
         return self._is_ready
 
     def get_engine_snapshot(self) -> ForemanSnapshot:
-        """
-        Return a simplified snapshot of the system state.
-
-        While driving toward a requested profile with no error, "profile"
-        is that target's name, even mid-transition. Otherwise, it's the
-        profile that matches the live observed state, or "None" if none
-        matches.
-        """
+        """Return a simplified snapshot of the system state."""
         with self._state_lock:
             return ForemanSnapshot(
-                profile=(
-                    self._target_profile.name
-                    if self._target_profile and not self._error_state
-                    else self._matching_profile_name()
-                ),
+                target_profile=(self._target_profile.name if self._target_profile else "None"),
+                current_profile=self._current_profile,
                 ready=self._is_ready,
                 at_profile=self._is_at_profile(),
                 error=ErrorSnapshot(
