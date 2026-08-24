@@ -34,6 +34,7 @@ class ForemanEngine:
         self._is_ready = False  # when we get first /activity reading
         self._error_state: Optional[ForemanError] = None
         self._last_issued_command: Optional[SystemTransitionCommand] = None
+        self._reached_target = False  # latches True once at_profile, until the next request
 
     @property
     def is_at_profile(self) -> bool:
@@ -92,6 +93,7 @@ class ForemanEngine:
                 return ForemanResponse(True, f"Already transitioning to '{profile_name}'.")
 
             self._current_profile = profile
+            self._reached_target = self._locked_is_at_profile()
 
             if self._error_state:
                 mismatches = self._locked_profile_mismatches(profile)
@@ -125,12 +127,20 @@ class ForemanEngine:
                 self._current_profile = None  # give up on the goal; only a new request retries
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
-        """Calculate the next step toward the profile."""
+        """
+        Calculate the next step toward the profile.
+
+        Returns None once the target has already been reached, even if
+        the live state later drifts away from it. Driving toward a
+        target resumes only once it's requested again.
+        """
         if not self._current_profile:
             return None
 
         with self._state_lock:
             if not self._is_ready or not self._current_profile:
+                return None
+            if self._reached_target:
                 return None
 
             cmd = self._planner.get_next_transition(self._state, self._current_profile)
@@ -156,7 +166,10 @@ class ForemanEngine:
             if not was_ready:
                 return ForemanResponse(True, "System state observed.")
 
-            return self.check_profile(previous_state)
+            response = self.check_profile(previous_state)
+            if self._locked_is_at_profile():
+                self._reached_target = True
+            return response
 
     def check_profile(self, previous_state: Dict[str, Component]) -> ForemanResponse:
         """

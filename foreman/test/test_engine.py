@@ -172,6 +172,7 @@ def test_when_hardware_error_and_controller_can_not_transition_mid_transition_ex
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
+    """Once the target is reached, a later crash is flagged but not auto-recovered."""
     engine = _prepare_engine(minimal_foreman_config)
 
     # start in active state
@@ -200,12 +201,11 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     assert "hw1" in snapshot.error.components
     assert snapshot.profile == "None"
 
-    # UNEXPECTED_STATE keeps Foreman trying to recover
-    cmd = engine.get_next_transition()
-    assert cmd is not None
-    assert cmd.component.name == "hw1"
+    # at_profile was already reached once -- Foreman doesn't drive back
+    # on its own; only a fresh request would resume driving
+    assert engine.get_next_transition() is None
 
-    # hw1 comes back up -- matches its profile target directly, error clears
+    # hw1 comes back up on its own -- matches its profile target, error clears
     engine.set_system_state([comp1])
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
@@ -273,6 +273,10 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     assert snapshot.profile == "all_inactive"
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
+    # "all_inactive" is a complete, valid profile -- Foreman doesn't fight
+    # a deliberate manual switch by driving back toward "running"
+    assert engine.get_next_transition() is None
+
     # hw1 reactivated alone -- ctrl1 is still inactive, profile stays "None"
     engine.set_system_state([hw1_active, ctrl1_inactive])
     snapshot = engine.get_engine_snapshot()
@@ -307,11 +311,41 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
     assert snapshot.profile == "all_inactive"
 
+    # the request itself is what resumes driving, since it hasn't reached
+    # "running" again yet -- it doesn't just sit there re-flagging the error
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.component.name == "hw1"
+
     # both reach "running" directly -- matching the target is expected
     engine.set_system_state([hw1_active, ctrl1_active])
     snapshot = engine.get_engine_snapshot()
     assert snapshot.profile == "running"
     assert snapshot.at_profile is True
+
+
+def test_when_requesting_profile_while_parked_at_a_different_valid_profile_expect_driving_starts(
+    hardware_and_controller_config,
+):
+    """A profile request drives toward its target, even starting from a different valid one."""
+    engine = _prepare_engine(hardware_and_controller_config)
+
+    # parked at "all_inactive" -- nobody has requested anything yet
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+        ]
+    )
+    assert engine.get_engine_snapshot().profile == "all_inactive"
+
+    # requesting "running" drives toward it, not blocked by starting at
+    # a different, valid, complete profile
+    engine.request_profile("running")
+    cmd = engine.get_next_transition()
+    assert cmd is not None
+    assert cmd.component.name == "hw1"
+    assert cmd.goal_state == LifecycleState.ACTIVE
 
 
 # --- Lifecycle Node Engine Tests ---
