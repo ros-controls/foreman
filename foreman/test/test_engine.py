@@ -170,6 +170,31 @@ def test_when_hardware_error_and_controller_can_not_transition_mid_transition_ex
     assert components_by_name["hw1"].lifecycle_state == LifecycleState.UNCONFIGURED
     assert components_by_name["ctrl1"].lifecycle_state == LifecycleState.INACTIVE
 
+    # both externally settle at "all_inactive" -- a known, valid profile,
+    # but still not "running": the error stays, just recomputed
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.INACTIVE),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+        ]
+    )
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.profile == "all_inactive"
+    assert snapshot.error.is_error is True
+    assert set(snapshot.error.components) == {"hw1", "ctrl1"}
+
+    # both externally reach "running" -- the targeted profile -- error clears
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
+        ]
+    )
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.profile == "running"
+    assert snapshot.error.is_error is False
+    assert snapshot.at_profile is True
+
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     """Once the target is reached, a later crash is flagged but not auto-recovered."""
