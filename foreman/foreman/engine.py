@@ -310,8 +310,12 @@ class ForemanEngine:
         """
         Find the configured profile that the live observed state matches, or "None".
 
+        Prefers the requested target profile when it matches the live state,
+        then falls back to the first other matching profile.
+
         MUST be called while holding self._state_lock!
         """
+        first_match = None
         for name, profile in self._config.profiles.items():
             targets = (
                 profile.hardware_targets
@@ -325,8 +329,11 @@ class ForemanEngine:
                     matches = False
                     break
             if matches:
-                return name
-        return "None"
+                if name == self._target_profile:
+                    return name
+                if first_match is None:
+                    first_match = name
+        return first_match if first_match is not None else "None"
 
     def _missing_profile_components(self, target_profile: SystemProfile) -> List[str]:
         """
