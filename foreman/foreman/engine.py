@@ -130,7 +130,7 @@ class ForemanEngine:
             return None
 
         with self._state_lock:
-            if not self._is_ready:
+            if not self._is_ready or not self._current_profile:
                 return None
 
             cmd = self._planner.get_next_transition(self._state, self._current_profile)
@@ -213,7 +213,7 @@ class ForemanEngine:
 
         self._error_state = ForemanError(
             category=ForemanErrorCategory.UNEXPECTED_STATE,
-            message="Aborting transition:\n  - " + "\n  - ".join(error_msgs),
+            message="Unexpected system state:\n  - " + "\n  - ".join(error_msgs),
             component_names=self._locked_profile_mismatches(self._current_profile),
         )
         self._last_issued_command = None
