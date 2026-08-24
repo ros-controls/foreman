@@ -21,14 +21,22 @@ def _component(name="ctrl_a", state=LifecycleState.INACTIVE):
     return Component(name=name, component_type=ComponentType.CONTROLLER, lifecycle_state=state)
 
 
-def _snapshot(profile="force_ctrl", ready=True, at_profile=False, error=None, components=None):
+def _snapshot(
+    target_profile="force_ctrl",
+    current_profile=None,
+    ready=True,
+    at_profile=False,
+    error=None,
+    components=None,
+):
     """Build a ForemanSnapshot with a no-error default."""
     if error is None:
         error = ErrorSnapshot(
             is_error=False, category=ForemanErrorCategory.NONE.value, message="", components=[]
         )
     return ForemanSnapshot(
-        profile=profile,
+        target_profile=target_profile,
+        current_profile=current_profile if current_profile is not None else target_profile,
         ready=ready,
         at_profile=at_profile,
         error=error,

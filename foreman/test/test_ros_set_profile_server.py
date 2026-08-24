@@ -13,14 +13,17 @@ from foreman.types import ForemanSnapshot
 from foreman_msgs.srv import SetProfile
 
 
-def _snapshot(profile="force_ctrl", ready=True, at_profile=False, error=None):
+def _snapshot(
+    target_profile="force_ctrl", current_profile=None, ready=True, at_profile=False, error=None
+):
     """Build a ForemanSnapshot with a no-error default."""
     if error is None:
         error = ErrorSnapshot(
             is_error=False, category=ForemanErrorCategory.NONE.value, message="", components=[]
         )
     return ForemanSnapshot(
-        profile=profile,
+        target_profile=target_profile,
+        current_profile=current_profile if current_profile is not None else target_profile,
         ready=ready,
         at_profile=at_profile,
         error=error,
@@ -159,7 +162,7 @@ class TestRosSetProfileServer(unittest.TestCase):
 
     def test_preempted_profile_returns_failure(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(profile="other_profile")
+        self.engine.get_engine_snapshot.return_value = _snapshot(target_profile="other_profile")
         request = SetProfile.Request(profile="force_ctrl")
         response = SetProfile.Response()
 

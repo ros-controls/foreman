@@ -74,10 +74,11 @@ class RosSetProfileServer:
                     )
                     return response
 
-                if snapshot.profile != profile_name:
+                if snapshot.target_profile != profile_name:
                     response.success = False
                     response.message = (
-                        f"Profile '{profile_name}' was preempted by profile '{snapshot.profile}'."
+                        f"Profile '{profile_name}' was preempted by profile "
+                        f"'{snapshot.target_profile}'."
                     )
                     self._node.get_logger().warning(f"{self.logger_prefix} {response.message}")
                     return response

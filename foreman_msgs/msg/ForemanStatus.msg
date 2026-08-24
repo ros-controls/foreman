@@ -1,6 +1,9 @@
 # Current Foreman engine status.
 
-string profile
+# Profile Foreman is driving toward, or "None" if none is requested yet.
+string target_profile
+# Profile the live observed state matches, or "None" if none matches.
+string current_profile
 bool ready
 bool at_profile
 ForemanErrorState error

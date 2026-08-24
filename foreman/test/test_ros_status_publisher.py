@@ -21,7 +21,8 @@ def _component(name="joint_trajectory_controller", state=LifecycleState.INACTIVE
 
 def _snapshot(components=None, all_profiles=None, available_profiles=None):
     return ForemanSnapshot(
-        profile="running",
+        target_profile="running",
+        current_profile="idle",
         ready=True,
         at_profile=False,
         error=ErrorSnapshot(
@@ -63,7 +64,8 @@ class TestRosStatusPublisher(unittest.TestCase):
         publisher.publish_status(_snapshot())
 
         published = publisher._publisher.publish.call_args[0][0]
-        self.assertEqual(published.profile, "running")
+        self.assertEqual(published.target_profile, "running")
+        self.assertEqual(published.current_profile, "idle")
         self.assertTrue(published.ready)
         self.assertFalse(published.at_profile)
         self.assertTrue(published.error.is_error)
