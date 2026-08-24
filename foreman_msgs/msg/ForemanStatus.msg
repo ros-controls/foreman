@@ -5,7 +5,6 @@ string target_profile
 # Profile the live observed state matches, or "None" if none matches.
 string current_profile
 bool ready
-bool at_profile
 ForemanErrorState error
 # Every profile name declared in scenario.yaml.
 string[] all_profiles
