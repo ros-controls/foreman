@@ -125,6 +125,17 @@ class RosSetProfileActionServer:
                     goal_handle.abort()
                     return result
 
+                if snapshot.target_profile != profile_name:
+                    result.success = False
+                    result.message = (
+                        f"Profile '{profile_name}' was preempted by profile "
+                        f"'{snapshot.target_profile}'."
+                    )
+                    result.error = error_msg
+                    self._logger.warning(result.message)
+                    goal_handle.abort()
+                    return result
+
                 if snapshot.target_profile != "None" and (
                     snapshot.target_profile == snapshot.current_profile
                 ):
