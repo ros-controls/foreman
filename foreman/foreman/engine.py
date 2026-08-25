@@ -94,6 +94,7 @@ class ForemanEngine:
                 return ForemanResponse(True, f"Already transitioning to '{profile_name}'.")
 
             self._target_profile = profile
+            self._current_profile = self._matching_profile_name()
             self._reached_target = self._is_at_profile()
 
             if self._error_state:
@@ -306,25 +307,38 @@ class ForemanEngine:
             self._target_profile is not None and self._current_profile == self._target_profile.name
         )
 
+    def _profile_matches_state(self, profile: SystemProfile) -> bool:
+        """
+        Check if the live observed state satisfies every target of the given profile.
+
+        MUST be called while holding self._state_lock!
+        """
+        targets = (
+            profile.hardware_targets + profile.controller_targets + profile.lifecycle_node_targets
+        )
+        for target in targets:
+            observed = self._state.components.get(target.name)
+            if observed is None or observed.lifecycle_state != target.lifecycle_state:
+                return False
+        return True
+
     def _matching_profile_name(self) -> str:
         """
         Find the configured profile that the live observed state matches, or "None".
 
+        Prefers the target profile over another, narrower one that happens to
+        match the same state -- e.g. "active" (gripper only) and "active_full"
+        (gripper + robot_manager) both match once both are active; without this
+        preference, "active_full" being requested and reached would never show
+        as current, since "active" comes first and matches too.
+
         MUST be called while holding self._state_lock!
         """
+        if self._target_profile and self._profile_matches_state(self._target_profile):
+            return self._target_profile.name
+
         for name, profile in self._config.profiles.items():
-            targets = (
-                profile.hardware_targets
-                + profile.controller_targets
-                + profile.lifecycle_node_targets
-            )
-            matches = True
-            for target in targets:
-                observed = self._state.components.get(target.name)
-                if observed is None or observed.lifecycle_state != target.lifecycle_state:
-                    matches = False
-                    break
-            if matches:
+            if self._profile_matches_state(profile):
                 return name
         return "None"
 
