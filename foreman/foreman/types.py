@@ -165,9 +165,9 @@ class ErrorSnapshot:
 
 @dataclass
 class ForemanSnapshot:
-    profile: str
+    target_profile: str
+    current_profile: str
     ready: bool
-    at_profile: bool
     error: ErrorSnapshot
     components: List[Component]
     all_profiles: List[str]

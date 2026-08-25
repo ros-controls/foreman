@@ -86,7 +86,8 @@ def test_engine_error_and_abort(minimal_foreman_config):
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
     assert snapshot.error.message == ERROR_MSG
-    assert snapshot.profile == "None"
+    assert snapshot.target_profile == "None"
+    assert snapshot.current_profile == "None"
 
 
 def test_set_system_state_expected_transition(minimal_foreman_config):
@@ -110,8 +111,9 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
     # still driving toward "active_profile" -- one more step needed (INACTIVE -> ACTIVE)
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
-    assert snapshot.profile == "active_profile"
-    assert snapshot.at_profile is False
+    assert snapshot.target_profile == "active_profile"
+    assert snapshot.current_profile == "None"
+    assert engine.is_at_profile is False
 
     # last step: reaches the target
     cmd = engine.get_next_transition()
@@ -122,8 +124,9 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
 
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
-    assert snapshot.profile == "active_profile"
-    assert snapshot.at_profile is True
+    assert snapshot.target_profile == "active_profile"
+    assert snapshot.current_profile == "active_profile"
+    assert engine.is_at_profile is True
 
 
 def test_when_hardware_error_and_controller_can_not_transition_mid_transition_expect_error_state_and_none_state(
@@ -159,12 +162,14 @@ def test_when_hardware_error_and_controller_can_not_transition_mid_transition_ex
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     assert "hw1" in response.error.component_names
     assert "ctrl1" in response.error.component_names
-    assert engine._current_profile.name == "running"
+    assert engine._target_profile.name == "running"
     assert engine.get_next_transition() is not None
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
     assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "None"
 
     components_by_name = {c.name: c for c in snapshot.components}
     assert components_by_name["hw1"].lifecycle_state == LifecycleState.UNCONFIGURED
@@ -179,7 +184,8 @@ def test_when_hardware_error_and_controller_can_not_transition_mid_transition_ex
         ]
     )
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.profile == "all_inactive"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "all_inactive"
     assert snapshot.error.is_error is True
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
@@ -191,9 +197,10 @@ def test_when_hardware_error_and_controller_can_not_transition_mid_transition_ex
         ]
     )
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.profile == "running"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "running"
     assert snapshot.error.is_error is False
-    assert snapshot.at_profile is True
+    assert engine.is_at_profile is True
 
 
 def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
@@ -224,9 +231,10 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     assert snapshot.error.is_error is True
     assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
     assert "hw1" in snapshot.error.components
-    assert snapshot.profile == "None"
+    assert snapshot.target_profile == "active_profile"
+    assert snapshot.current_profile == "None"
 
-    # at_profile was already reached once -- Foreman doesn't drive back
+    # the target was already reached once -- Foreman doesn't drive back
     # on its own; only a fresh request would resume driving
     assert engine.get_next_transition() is None
 
@@ -234,8 +242,9 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     engine.set_system_state([comp1])
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
-    assert snapshot.profile == "active_profile"
-    assert snapshot.at_profile is True
+    assert snapshot.target_profile == "active_profile"
+    assert snapshot.current_profile == "active_profile"
+    assert engine.is_at_profile is True
 
 
 @pytest.fixture
@@ -283,7 +292,8 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     ctrl1_active = Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
     response = engine.set_system_state([hw1_active, ctrl1_active])
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.profile == "running"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "running"
     assert snapshot.error.is_error is False
     assert response.success is True
 
@@ -295,17 +305,19 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
-    assert snapshot.profile == "all_inactive"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "all_inactive"
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
     # "all_inactive" is a complete, valid profile -- Foreman doesn't fight
     # a deliberate manual switch by driving back toward "running"
     assert engine.get_next_transition() is None
 
-    # hw1 reactivated alone -- ctrl1 is still inactive, profile stays "None"
+    # hw1 reactivated alone -- ctrl1 is still inactive, current_profile stays "None"
     engine.set_system_state([hw1_active, ctrl1_inactive])
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.profile == "None"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "None"
     assert snapshot.error.is_error is True
     assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
     assert snapshot.error.components == ["ctrl1"]
@@ -313,7 +325,8 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     # ctrl1 reactivated too -- both match "running" again, profile and error recover
     engine.set_system_state([hw1_active, ctrl1_active])
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.profile == "running"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "running"
     assert snapshot.error.is_error is False
     assert snapshot.error.components == []
 
@@ -323,7 +336,8 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
-    assert snapshot.profile == "all_inactive"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "all_inactive"
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
 
     # explicit re-request doesn't clear an UNEXPECTED_STATE error either --
@@ -334,7 +348,8 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     assert snapshot.error.is_error is True
     assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
     assert set(snapshot.error.components) == {"hw1", "ctrl1"}
-    assert snapshot.profile == "all_inactive"
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "all_inactive"
 
     # the request itself is what resumes driving, since it hasn't reached
     # "running" again yet -- it doesn't just sit there re-flagging the error
@@ -345,8 +360,9 @@ def test_when_hardware_and_controller_recover_separately_expect_error_and_known_
     # both reach "running" directly -- matching the target is expected
     engine.set_system_state([hw1_active, ctrl1_active])
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.profile == "running"
-    assert snapshot.at_profile is True
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "running"
+    assert engine.is_at_profile is True
 
 
 def test_when_requesting_profile_while_parked_at_a_different_valid_profile_expect_driving_starts(
@@ -362,7 +378,9 @@ def test_when_requesting_profile_while_parked_at_a_different_valid_profile_expec
             Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
         ]
     )
-    assert engine.get_engine_snapshot().profile == "all_inactive"
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.target_profile == "None"
+    assert snapshot.current_profile == "all_inactive"
 
     # requesting "running" drives toward it, not blocked by starting at
     # a different, valid, complete profile
@@ -371,6 +389,84 @@ def test_when_requesting_profile_while_parked_at_a_different_valid_profile_expec
     assert cmd is not None
     assert cmd.component.name == "hw1"
     assert cmd.goal_state == LifecycleState.ACTIVE
+
+
+def test_when_profile_omits_a_tracked_component_expect_its_state_ignored_for_matching():
+    """A tracked component not listed in a profile's targets doesn't affect matching it."""
+    hw1_active = SystemProfile(
+        "hw1_active",
+        hardware_targets=[Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+    )
+    config = ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        profiles={"hw1_active": hw1_active},
+        tracked_components={"hw1", "ctrl1"},
+    )
+    engine = _prepare_engine(config)
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
+        ]
+    )
+    engine.request_profile("hw1_active")
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.current_profile == "hw1_active"
+    assert engine.is_at_profile is True
+
+    # ctrl1 isn't part of "hw1_active"'s targets -- its state doesn't affect
+    # whether the profile matches, but an unprompted change is still flagged
+    response = engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("ctrl1", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
+        ]
+    )
+    assert response.success is False
+    assert response.error.category == ForemanErrorCategory.UNEXPECTED_STATE
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.current_profile == "hw1_active"
+    assert engine.is_at_profile is True
+
+
+def test_when_targeted_component_becomes_finalized_expect_current_profile_does_not_match():
+    """A component reporting FINALIZED doesn't count toward matching any profile."""
+    running = SystemProfile(
+        "running",
+        hardware_targets=[Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        lifecycle_node_targets=[
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
+        ],
+    )
+    config = ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        profiles={"running": running},
+        lifecycle_nodes=["robot_manager"],
+        tracked_components={"hw1", "robot_manager"},
+    )
+    engine = _prepare_engine(config)
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE),
+        ]
+    )
+    engine.request_profile("running")
+    assert engine.get_engine_snapshot().current_profile == "running"
+
+    # robot_manager disconnects -- reported as FINALIZED, the same way
+    # component_state_monitor does when its transition_event publisher disappears
+    engine.set_system_state(
+        [
+            Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.FINALIZED),
+        ]
+    )
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.target_profile == "running"
+    assert snapshot.current_profile == "None"
 
 
 # --- Lifecycle Node Engine Tests ---
@@ -426,8 +522,9 @@ def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
     # still driving toward "active_profile" -- one more step needed (INACTIVE -> ACTIVE)
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
-    assert snapshot.profile == "active_profile"
-    assert snapshot.at_profile is False
+    assert snapshot.target_profile == "active_profile"
+    assert snapshot.current_profile == "None"
+    assert engine.is_at_profile is False
 
     # last step: reaches the target
     cmd = engine.get_next_transition()
@@ -438,8 +535,9 @@ def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
 
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is False
-    assert snapshot.profile == "active_profile"
-    assert snapshot.at_profile is True
+    assert snapshot.target_profile == "active_profile"
+    assert snapshot.current_profile == "active_profile"
+    assert engine.is_at_profile is True
 
 
 def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
@@ -462,7 +560,8 @@ def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
 
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
-    assert snapshot.profile == "None"
+    assert snapshot.target_profile == "active_profile"
+    assert snapshot.current_profile == "None"
 
 
 # --- Unsatisfiable Dependency Tests ---

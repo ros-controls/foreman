@@ -13,16 +13,16 @@ from foreman.types import ForemanSnapshot
 from foreman_msgs.srv import SetProfile
 
 
-def _snapshot(profile="force_ctrl", ready=True, at_profile=False, error=None):
+def _snapshot(target_profile="force_ctrl", current_profile=None, ready=True, error=None):
     """Build a ForemanSnapshot with a no-error default."""
     if error is None:
         error = ErrorSnapshot(
             is_error=False, category=ForemanErrorCategory.NONE.value, message="", components=[]
         )
     return ForemanSnapshot(
-        profile=profile,
+        target_profile=target_profile,
+        current_profile=current_profile if current_profile is not None else target_profile,
         ready=ready,
-        at_profile=at_profile,
         error=error,
         components=[],
         all_profiles=[],
@@ -70,7 +70,7 @@ class TestRosSetProfileServer(unittest.TestCase):
     def test_shutdown_stops_waiting_for_the_profile(self):
         # Without _shutting_down the wait loop never ends and the process cannot exit.
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=False)
+        self.engine.get_engine_snapshot.return_value = _snapshot()
         server = self._server()
         server.request_shutdown()
 
@@ -115,9 +115,9 @@ class TestRosSetProfileServer(unittest.TestCase):
     def test_succeeds_only_once_engine_reports_at_profile(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_profile=False),
-            _snapshot(at_profile=False),
-            _snapshot(at_profile=True),
+            _snapshot(current_profile="None"),
+            _snapshot(current_profile="None"),
+            _snapshot(),
         ]
         request = SetProfile.Request(profile="force_ctrl")
         response = SetProfile.Response()
@@ -130,7 +130,7 @@ class TestRosSetProfileServer(unittest.TestCase):
 
     def test_successful_profile_releases_execution_lock(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=True)
+        self.engine.get_engine_snapshot.return_value = _snapshot()
         execution_lock = threading.Lock()
         request = SetProfile.Request(profile="force_ctrl")
         response = SetProfile.Response()
@@ -146,7 +146,7 @@ class TestRosSetProfileServer(unittest.TestCase):
     def test_engine_error_returns_failure(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_profile=False),
+            _snapshot(current_profile="None"),
             _snapshot(error=_error_snapshot(message="Service rejected the transition.")),
         ]
         request = SetProfile.Request(profile="force_ctrl")
@@ -159,7 +159,7 @@ class TestRosSetProfileServer(unittest.TestCase):
 
     def test_preempted_profile_returns_failure(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(profile="other_profile")
+        self.engine.get_engine_snapshot.return_value = _snapshot(target_profile="other_profile")
         request = SetProfile.Request(profile="force_ctrl")
         response = SetProfile.Response()
 

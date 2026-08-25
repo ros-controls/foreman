@@ -21,9 +21,9 @@ def _component(name="joint_trajectory_controller", state=LifecycleState.INACTIVE
 
 def _snapshot(components=None, all_profiles=None, available_profiles=None):
     return ForemanSnapshot(
-        profile="running",
+        target_profile="running",
+        current_profile="idle",
         ready=True,
-        at_profile=False,
         error=ErrorSnapshot(
             is_error=True,
             category=ForemanErrorCategory.EXECUTION.value,
@@ -63,9 +63,9 @@ class TestRosStatusPublisher(unittest.TestCase):
         publisher.publish_status(_snapshot())
 
         published = publisher._publisher.publish.call_args[0][0]
-        self.assertEqual(published.profile, "running")
+        self.assertEqual(published.target_profile, "running")
+        self.assertEqual(published.current_profile, "idle")
         self.assertTrue(published.ready)
-        self.assertFalse(published.at_profile)
         self.assertTrue(published.error.is_error)
         self.assertEqual(published.error.category, ForemanErrorCategory.EXECUTION.value)
         self.assertEqual(published.error.message, "boom")
@@ -105,11 +105,11 @@ class TestRosStatusPublisher(unittest.TestCase):
         publisher.publish_status(_snapshot())
 
         changed = _snapshot()
-        changed.at_profile = True
+        changed.current_profile = "running"
         publisher.publish_status(changed)
 
         self.assertEqual(publisher._publisher.publish.call_count, 2)
-        self.assertTrue(publisher._publisher.publish.call_args[0][0].at_profile)
+        self.assertEqual(publisher._publisher.publish.call_args[0][0].current_profile, "running")
 
     def test_publish_status_handles_missing_error_components(self):
         publisher = RosStatusPublisher(self.node)
