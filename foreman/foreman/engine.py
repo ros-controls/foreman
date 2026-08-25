@@ -86,7 +86,7 @@ class ForemanEngine:
                 self._error_state = None  # blocked category: only an explicit request can clear it
             self._last_issued_command = None
 
-            # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._target_profile == Null.
+            # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._target_profile == None.
             # Fix this so we log "Already at profile"
             if self._target_profile == profile and not self._error_state:
                 if self._is_at_profile():
