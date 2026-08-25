@@ -55,13 +55,13 @@ def _state(
 
     set_system_state() replaces the observed state wholesale, not merges it --
     this always states hw1/ctrl1/lc1 explicitly so a test can't accidentally
-    drop one. Pass None for a component to omit it from observation entirely.
+    drop one. Pass lc1=None to omit it from observation entirely (e.g.
+    simulating it hasn't reported in yet).
     """
-    components = []
-    if hw1 is not None:
-        components.append(Component("hw1", ComponentType.HARDWARE, hw1))
-    if ctrl1 is not None:
-        components.append(Component("ctrl1", ComponentType.CONTROLLER, ctrl1))
+    components = [
+        Component("hw1", ComponentType.HARDWARE, hw1),
+        Component("ctrl1", ComponentType.CONTROLLER, ctrl1),
+    ]
     if lc1 is not None:
         components.append(Component("lc1", ComponentType.LIFECYCLE_NODE, lc1))
     return components
