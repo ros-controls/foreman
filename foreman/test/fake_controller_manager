@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+Fake controller_manager for foreman integration tests.
+
+Run with: ros2 run foreman fake_controller_manager
+Publishes /<name>/activity and serves the switch_controller,
+set_hardware_component_state, configure_controller, and
+cleanup_controller services, tracking one hardware component ('hw1')
+and one controller ('ctrl1') in memory -- matching
+config/scenario_integration_test.yaml.
+"""
+
+import rclpy
+from controller_manager_msgs.msg import ControllerManagerActivity, NamedLifecycleState
+from controller_manager_msgs.srv import (
+    CleanupController,
+    ConfigureController,
+    SetHardwareComponentState,
+    SwitchController,
+)
+from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+
+from foreman.types import LifecycleState
+
+
+class FakeControllerManager(Node):
+    """Test double standing in for controller_manager's /activity topic and services."""
+
+    def __init__(self):
+        super().__init__("fake_controller_manager")
+
+        self._hardware = {"hw1": LifecycleState.UNCONFIGURED}
+        self._controllers = {"ctrl1": LifecycleState.UNCONFIGURED}
+
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        self._activity_publisher = self.create_publisher(
+            ControllerManagerActivity, "~/activity", qos_profile
+        )
+
+        self.create_service(
+            SetHardwareComponentState,
+            "~/set_hardware_component_state",
+            self._on_set_hardware_component_state,
+        )
+        self.create_service(
+            ConfigureController, "~/configure_controller", self._on_configure_controller
+        )
+        self.create_service(CleanupController, "~/cleanup_controller", self._on_cleanup_controller)
+        self.create_service(SwitchController, "~/switch_controller", self._on_switch_controller)
+
+        self._publish_activity()
+        self.get_logger().info("Fake controller_manager ready.")
+
+    def _publish_activity(self):
+        """Publish the current in-memory state of every tracked component."""
+        msg = ControllerManagerActivity()
+        msg.hardware_components = [
+            NamedLifecycleState(name=name, state=state.ros_state)
+            for name, state in self._hardware.items()
+        ]
+        msg.controllers = [
+            NamedLifecycleState(name=name, state=state.ros_state)
+            for name, state in self._controllers.items()
+        ]
+        self._activity_publisher.publish(msg)
+
+    def _on_set_hardware_component_state(self, request, response):
+        self._hardware[request.name] = LifecycleState(request.target_state.id)
+        response.ok = True
+        response.state = self._hardware[request.name].ros_state
+        self._publish_activity()
+        return response
+
+    def _on_configure_controller(self, request, response):
+        self._controllers[request.name] = LifecycleState.INACTIVE
+        response.ok = True
+        self._publish_activity()
+        return response
+
+    def _on_cleanup_controller(self, request, response):
+        self._controllers[request.name] = LifecycleState.UNCONFIGURED
+        response.ok = True
+        self._publish_activity()
+        return response
+
+    def _on_switch_controller(self, request, response):
+        for name in request.activate_controllers:
+            self._controllers[name] = LifecycleState.ACTIVE
+        for name in request.deactivate_controllers:
+            self._controllers[name] = LifecycleState.INACTIVE
+        response.ok = True
+        response.message = ""
+        self._publish_activity()
+        return response
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = FakeControllerManager()
+
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

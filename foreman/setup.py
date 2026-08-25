@@ -21,6 +21,10 @@ setup(
         "lifecycle_msgs",
         "pyyaml",
     ],
+    scripts=[
+        "test/dummy_lifecycle_node",
+        "test/fake_controller_manager",
+    ],
     zip_safe=True,
     maintainer="Nikola Banovic",
     maintainer_email="nibanovic@gmail.com",
@@ -34,7 +38,6 @@ setup(
     entry_points={
         "console_scripts": [
             "foreman_node=foreman.node:main",
-            "dummy_lifecycle_node=foreman.dummy_lifecycle_node:main",
         ],
     },
 )
