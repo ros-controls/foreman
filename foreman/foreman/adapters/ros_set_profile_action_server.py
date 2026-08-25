@@ -136,9 +136,7 @@ class RosSetProfileActionServer:
                     goal_handle.abort()
                     return result
 
-                if snapshot.target_profile != "None" and (
-                    snapshot.target_profile == snapshot.current_profile
-                ):
+                if snapshot.current_profile == profile_name:
                     result.success = True
                     result.message = f"Profile '{profile_name}' reached."
                     result.error = error_msg
