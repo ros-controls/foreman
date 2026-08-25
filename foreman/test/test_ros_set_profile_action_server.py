@@ -274,6 +274,18 @@ class TestRosSetProfileActionServer(unittest.TestCase):
         self.assertEqual([c.name for c in result.error.components], ["ctrl_a"])
         self.assertEqual(result.error.components[0].lifecycle_state, "INACTIVE")
 
+    def test_preempted_profile_aborts_and_reports_it(self):
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(target_profile="other_profile")
+        handle = _goal_handle()
+
+        result = self._server()._execute(handle)
+
+        handle.abort.assert_called_once()
+        handle.succeed.assert_not_called()
+        self.assertFalse(result.success)
+        self.assertIn("preempted", result.message)
+
     def test_cancel_stops_waiting(self):
         self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         self.engine.get_engine_snapshot.return_value = _snapshot()

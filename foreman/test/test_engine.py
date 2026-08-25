@@ -654,6 +654,30 @@ def test_profile_accepted_when_dependency_already_satisfied(dependency_config):
     assert response.success is True
 
 
+def test_when_target_profile_is_a_superset_of_an_earlier_configured_profile_expect_it_still_matches(
+    dependency_config,
+):
+    """A matching target profile must win over a narrower, earlier-configured one."""
+    lock = threading.Lock()
+    engine = ForemanEngine(dependency_config, lock)
+
+    # "active" (configured first, targets only gripper) also matches this
+    # state -- "active_full" must still be reported once it's requested
+    engine.set_system_state(
+        [
+            Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE),
+        ]
+    )
+
+    response = engine.request_profile("active_full")
+    assert response.success is True
+    snapshot = engine.get_engine_snapshot()
+    assert snapshot.target_profile == "active_full"
+    assert snapshot.current_profile == "active_full"
+    assert engine.is_at_profile is True
+
+
 # --- Snapshot Profile Availability Tests ---
 def test_snapshot_available_profiles_empty_before_ready(minimal_foreman_config):
     """Snapshot reports no available profiles before the first observed state."""
