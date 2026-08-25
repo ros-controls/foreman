@@ -26,6 +26,23 @@ class ForemanErrorCategory(Enum):
     NONE = "None"
 
 
+class OperatingMode(Enum):
+    """Machine operating mode, per ISO 10218-1 5.7 (mode selector)."""
+
+    AUTOMATIC = "Automatic"
+    MANUAL_REDUCED = "ManualReducedSpeed"  # formerly "T1"/Teach
+    MANUAL_HIGH = "ManualHighSpeed"  # formerly "T2"
+
+
+class StopState(Enum):
+    """Machine stop state, per Machinery Regulation (EU) 2023/1230 1.2.4."""
+
+    RUNNING = "Running"
+    NORMAL_STOP = "NormalStop"
+    OPERATIONAL_STOP = "OperationalStop"
+    EMERGENCY_STOP = "EmergencyStop"
+
+
 @dataclass
 class ForemanError:
     """Domain representation of an error in the system."""
@@ -138,6 +155,8 @@ class SystemProfile:
     hardware_targets: List[Component] = field(default_factory=list)
     controller_targets: List[Component] = field(default_factory=list)
     lifecycle_node_targets: List[Component] = field(default_factory=list)
+    operating_mode: OperatingMode = OperatingMode.AUTOMATIC
+    stop_state: StopState = StopState.RUNNING
 
 
 @dataclass
@@ -172,3 +191,5 @@ class ForemanSnapshot:
     components: List[Component]
     all_profiles: List[str]
     available_profiles: List[str]
+    operating_mode: str
+    stop_state: str

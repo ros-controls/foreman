@@ -15,6 +15,8 @@ from foreman.types import ForemanErrorCategory
 from foreman.types import ForemanResponse
 from foreman.types import ForemanSnapshot
 from foreman.types import LifecycleState
+from foreman.types import OperatingMode
+from foreman.types import StopState
 
 
 def _component(name="ctrl_a", state=LifecycleState.INACTIVE):
@@ -35,6 +37,8 @@ def _snapshot(profile="force_ctrl", ready=True, at_profile=False, error=None, co
         components=components if components is not None else [],
         all_profiles=[],
         available_profiles=[],
+        operating_mode=OperatingMode.AUTOMATIC.value,
+        stop_state=StopState.RUNNING.value,
     )
 
 

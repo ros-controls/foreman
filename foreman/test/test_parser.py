@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from foreman.parser import parse_yaml_file
-from foreman.types import ComponentType, LifecycleState
+from foreman.types import ComponentType, LifecycleState, OperatingMode, StopState
 
 
 @pytest.fixture
@@ -112,6 +112,8 @@ class TestProfiles:
     def test_idle_profile(self, parsed_scenario):
         profile = parsed_scenario.profiles["idle"]
         assert profile.name == "idle"
+        assert profile.operating_mode == OperatingMode.MANUAL_REDUCED
+        assert profile.stop_state == StopState.NORMAL_STOP
 
         assert len(profile.hardware_targets) == 2
         hw_names = {c.name for c in profile.hardware_targets}
@@ -136,6 +138,9 @@ class TestProfiles:
     def test_broadcast_only_profile(self, parsed_scenario):
         profile = parsed_scenario.profiles["broadcast_only"]
         assert profile.name == "broadcast_only"
+        # Not declared in scenario.yaml - falls back to the defaults.
+        assert profile.operating_mode == OperatingMode.AUTOMATIC
+        assert profile.stop_state == StopState.RUNNING
 
         assert len(profile.hardware_targets) == 2
         for hw in profile.hardware_targets:
@@ -155,6 +160,8 @@ class TestProfiles:
     def test_running_profile(self, parsed_scenario):
         profile = parsed_scenario.profiles["running"]
         assert profile.name == "running"
+        assert profile.operating_mode == OperatingMode.AUTOMATIC
+        assert profile.stop_state == StopState.RUNNING
 
         assert len(profile.hardware_targets) == 2
         for hw in profile.hardware_targets:

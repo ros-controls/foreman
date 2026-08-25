@@ -12,6 +12,8 @@ from foreman.types import (
     ForemanErrorCategory,
     ForemanSnapshot,
     LifecycleState,
+    OperatingMode,
+    StopState,
 )
 
 
@@ -33,6 +35,8 @@ def _snapshot(components=None, all_profiles=None, available_profiles=None):
         components=components if components is not None else [_component()],
         all_profiles=all_profiles if all_profiles is not None else ["idle", "running"],
         available_profiles=available_profiles if available_profiles is not None else ["idle"],
+        operating_mode=OperatingMode.AUTOMATIC.value,
+        stop_state=StopState.RUNNING.value,
     )
 
 
@@ -78,6 +82,8 @@ class TestRosStatusPublisher(unittest.TestCase):
         self.assertEqual(published.error.components[0].lifecycle_state, "INACTIVE")
         self.assertEqual(list(published.all_profiles), ["idle", "running"])
         self.assertEqual(list(published.available_profiles), ["idle"])
+        self.assertEqual(published.operating_mode, OperatingMode.AUTOMATIC.value)
+        self.assertEqual(published.stop_state, StopState.RUNNING.value)
 
     def test_status_topic_is_transient_local(self):
         publisher = RosStatusPublisher(self.node)

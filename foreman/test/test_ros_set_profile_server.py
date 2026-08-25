@@ -10,6 +10,8 @@ from foreman.types import ErrorSnapshot
 from foreman.types import ForemanErrorCategory
 from foreman.types import ForemanResponse
 from foreman.types import ForemanSnapshot
+from foreman.types import OperatingMode
+from foreman.types import StopState
 from foreman_msgs.srv import SetProfile
 
 
@@ -27,6 +29,8 @@ def _snapshot(profile="force_ctrl", ready=True, at_profile=False, error=None):
         components=[],
         all_profiles=[],
         available_profiles=[],
+        operating_mode=OperatingMode.AUTOMATIC.value,
+        stop_state=StopState.RUNNING.value,
     )
 
 
