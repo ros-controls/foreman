@@ -677,3 +677,20 @@ def test_when_dependency_satisfaction_changes_expect_available_profiles_updates(
     engine.set_system_state(_state(hw1=LifecycleState.ACTIVE, ctrl1=LifecycleState.INACTIVE))
     snapshot = engine.get_engine_snapshot()
     assert "ctrl1_active_only" in snapshot.available_profiles
+
+
+def test_when_state_observed_expect_response_reports_missing_configured_components(
+    foreman_config,
+):
+    """Every set_system_state() call reports configured components absent from observed state."""
+    engine = ForemanEngine(foreman_config, threading.Lock())
+
+    response = engine.set_system_state([])
+    assert response.missing_components == ["ctrl1", "hw1", "lc1"]
+
+    # a component absent from observed state, e.g. a scenario.yaml name typo
+    response = engine.set_system_state(_state(lc1=None))
+    assert response.missing_components == ["lc1"]
+
+    response = engine.set_system_state(_state())
+    assert response.missing_components == []

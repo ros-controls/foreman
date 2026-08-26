@@ -162,16 +162,21 @@ class ForemanEngine:
             previous_state = self._state.components
             self._state.components = {comp.name: comp for comp in tracked_components}
             self._current_profile = self._matching_profile_name()
+            missing_components = sorted(
+                self._config.tracked_components - self._state.components.keys()
+            )
 
             was_ready = self._is_ready
             self._is_ready = True
 
             if not was_ready:
-                return ForemanResponse(True, "System state observed.")
+                response = ForemanResponse(True, "System state observed.")
+            else:
+                response = self.check_profile(previous_state)
+                if self._is_at_profile():
+                    self._reached_target = True
 
-            response = self.check_profile(previous_state)
-            if self._is_at_profile():
-                self._reached_target = True
+            response.missing_components = missing_components
             return response
 
     def check_profile(self, previous_state: Dict[str, Component]) -> ForemanResponse:

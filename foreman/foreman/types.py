@@ -42,6 +42,7 @@ class ForemanResponse:
     success: bool
     message: str
     error: Optional[ForemanError] = None
+    missing_components: List[str] = field(default_factory=list)
 
 
 class ComponentType(Enum):

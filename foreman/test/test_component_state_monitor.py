@@ -173,6 +173,21 @@ class TestComponentStateMonitor(unittest.TestCase):
         logger.error.assert_called_once()
         logger.warning.assert_not_called()
 
+    def test_when_response_reports_missing_components_expect_warning_logged_every_time(self):
+        self.engine.set_system_state.return_value = ForemanResponse(
+            True, "ok", missing_components=["hw1"]
+        )
+        logger = MagicMock()
+        self.node.get_logger = MagicMock(return_value=logger)
+
+        self.monitor._activity_callback(ControllerManagerActivity())
+        self.monitor._activity_callback(ControllerManagerActivity())
+
+        missing_warnings = [
+            call for call in logger.warning.call_args_list if "hw1" in call.args[0]
+        ]
+        self.assertEqual(len(missing_warnings), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
