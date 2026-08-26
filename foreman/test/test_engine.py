@@ -96,16 +96,13 @@ def foreman_config():
             ),
         )
 
+    # "ros2_control_active"/"_inactive" are listed before the profiles they're a
+    # subset of ("active"/"all_inactive"), deliberately -- this is the same
+    # "narrower profile configured first" trap the overlapping-profile fix
+    # (_matching_profile_name() preferring the target) actually needed to
+    # handle; a fixture that happened to list the superset first would make
+    # that regression test pass even without the fix.
     profiles = {
-        "active": profile(
-            "active", LifecycleState.ACTIVE, LifecycleState.ACTIVE, LifecycleState.ACTIVE
-        ),
-        "all_inactive": profile(
-            "all_inactive",
-            LifecycleState.INACTIVE,
-            LifecycleState.INACTIVE,
-            LifecycleState.INACTIVE,
-        ),
         "idle": profile(
             "idle",
             LifecycleState.UNCONFIGURED,
@@ -117,6 +114,15 @@ def foreman_config():
         ),
         "ros2_control_inactive": profile(
             "ros2_control_inactive", LifecycleState.INACTIVE, LifecycleState.INACTIVE
+        ),
+        "active": profile(
+            "active", LifecycleState.ACTIVE, LifecycleState.ACTIVE, LifecycleState.ACTIVE
+        ),
+        "all_inactive": profile(
+            "all_inactive",
+            LifecycleState.INACTIVE,
+            LifecycleState.INACTIVE,
+            LifecycleState.INACTIVE,
         ),
         "ctrl1_active_only": profile("ctrl1_active_only", ctrl=LifecycleState.ACTIVE),
     }
@@ -593,6 +599,54 @@ def test_when_dependency_already_satisfied_externally_expect_profile_accepted(fo
     engine.set_system_state(_state(hw1=LifecycleState.ACTIVE, ctrl1=LifecycleState.INACTIVE))
 
     response = engine.request_profile("ctrl1_active_only")
+    assert response.success is True
+
+
+def test_when_controller_depends_on_lifecycle_node_expect_dependency_enforced():
+    """
+    _check_unsatisfiable_dependencies() treats a lifecycle-node dependency like a
+    hardware one -- exercised with its own scenario, since foreman_config's own
+    ctrl1 -> hw1 dependency never reaches the lifecycle-node branch.
+    """
+    profile_missing_dep = SystemProfile(
+        "active",
+        controller_targets=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+    )
+    profile_with_dep = SystemProfile(
+        "active_full",
+        controller_targets=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+        lifecycle_node_targets=[
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
+        ],
+    )
+    config = ParsedScenario(
+        hardware=[],
+        dependency_rules=[
+            ControllerDependencyRule(
+                controller_name="gripper",
+                required_hardware=[HardwareRequirement("robot_manager", LifecycleState.ACTIVE)],
+            )
+        ],
+        profiles={"active": profile_missing_dep, "active_full": profile_with_dep},
+        lifecycle_nodes=["robot_manager"],
+        tracked_components={"gripper", "robot_manager"},
+    )
+    engine = _prepare_engine(config)
+    engine.set_system_state(
+        [
+            Component("gripper", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+            Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.INACTIVE),
+        ]
+    )
+
+    # rejected: robot_manager isn't active, and "active" doesn't target it
+    response = engine.request_profile("active")
+    assert response.success is False
+    assert "gripper" in response.message
+    assert "robot_manager" in response.message
+
+    # accepted: "active_full" targets robot_manager itself
+    response = engine.request_profile("active_full")
     assert response.success is True
 
 

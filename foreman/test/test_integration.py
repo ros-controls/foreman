@@ -17,6 +17,7 @@ import pytest
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from rclpy.action import ActionClient
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from foreman_msgs.action import SetProfile as SetProfileAction
 from foreman_msgs.msg import ForemanStatus
@@ -69,12 +70,28 @@ class TestForemanIntegration(unittest.TestCase):
         rclpy.init()
         cls.node = rclpy.create_node("test_integration_client")
         cls.status = None
-        cls.node.create_subscription(ForemanStatus, "/foreman/status", cls._on_status, 1)
+        # /foreman/status is transient-local: match its QoS so a late-joining
+        # subscriber still gets the retained last status, instead of only
+        # future publishes (which stop once the snapshot stops changing)
+        status_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        cls.node.create_subscription(ForemanStatus, "/foreman/status", cls._on_status, status_qos)
         cls.set_profile_client = cls.node.create_client(SetProfileSrv, "/foreman/set_profile")
         cls.set_profile_action_client = ActionClient(
             cls.node, SetProfileAction, "/foreman/set_profile"
         )
-        cls._wait_for(lambda: cls.status is not None and cls.status.ready, timeout=30.0)
+        # ready flips true as soon as any component reports in -- dummy_lifecycle_node
+        # is a separate, slower-starting process than fake_controller_manager, so
+        # waiting on ready alone races with its discovery. Wait for every profile to
+        # show available instead, confirming all three components have reported.
+        cls._wait_for(
+            lambda: cls.status is not None and set(cls.status.available_profiles) == ALL_PROFILES,
+            timeout=30.0,
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -151,6 +168,13 @@ class TestForemanIntegration(unittest.TestCase):
 
         first_handle = self._send_set_profile_goal("all_inactive")
         self.assertTrue(first_handle.accepted)
+
+        # goal acceptance doesn't guarantee _execute() has started yet (it's
+        # dispatched separately by the action server) -- wait for the status
+        # topic to show the request was actually processed, confirming
+        # request_profile() ran and execution_lock is held, before racing
+        # a second goal against it
+        self._wait_for(lambda: self.status.target_profile == "all_inactive", timeout=5.0)
 
         # accepted at the action layer, but the shared execution_lock the
         # service and action adapters share rejects it before it can run --
