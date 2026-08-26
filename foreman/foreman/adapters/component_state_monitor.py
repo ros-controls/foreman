@@ -196,3 +196,10 @@ class ComponentStateMonitor:
             log(
                 f"{self._logger_prefix} [{response.error.category.value}] \n{response.error.message}"
             )
+
+        if response.missing_components:
+            self._node.get_logger().warning(
+                f"{self._logger_prefix} Configured components not observed "
+                f"(check names in scenario.yaml against /activity and lifecycle nodes): "
+                f"{response.missing_components}"
+            )
