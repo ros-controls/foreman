@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import rclpy
 from rclpy.action import get_action_names_and_types
+from rclpy.action.server import CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 
 from foreman.adapters.ros_set_profile_action_server import _to_error_msg
@@ -325,6 +326,21 @@ class TestRosSetProfileActionServer(unittest.TestCase):
         handle.succeed.assert_called_once()
         handle.publish_feedback.assert_not_called()
         self.assertTrue(result.success)
+
+    def test_goal_request_is_always_accepted(self):
+        server = self._server()
+        goal_request = MagicMock(profile="force_ctrl")
+
+        response = server._on_goal_request(goal_request)
+
+        self.assertEqual(response, GoalResponse.ACCEPT)
+
+    def test_cancel_request_is_always_accepted(self):
+        server = self._server()
+
+        response = server._on_cancel_request(MagicMock())
+
+        self.assertEqual(response, CancelResponse.ACCEPT)
 
 
 if __name__ == "__main__":

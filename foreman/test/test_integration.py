@@ -17,6 +17,7 @@ import pytest
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from rclpy.action import ActionClient
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from foreman_msgs.action import SetProfile as SetProfileAction
 from foreman_msgs.msg import ForemanStatus
@@ -69,12 +70,31 @@ class TestForemanIntegration(unittest.TestCase):
         rclpy.init()
         cls.node = rclpy.create_node("test_integration_client")
         cls.status = None
-        cls.node.create_subscription(ForemanStatus, "/foreman/status", cls._on_status, 1)
+        # match /foreman/status's transient-local QoS, or a late-joining subscriber misses it
+        status_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        cls.node.create_subscription(ForemanStatus, "/foreman/status", cls._on_status, status_qos)
         cls.set_profile_client = cls.node.create_client(SetProfileSrv, "/foreman/set_profile")
         cls.set_profile_action_client = ActionClient(
             cls.node, SetProfileAction, "/foreman/set_profile"
         )
-        cls._wait_for(lambda: cls.status is not None and cls.status.ready, timeout=30.0)
+        # wait for full observation, not just ready -- and clean up on failure,
+        # since tearDownClass never runs for a failed setUpClass
+        try:
+            cls._wait_for(
+                lambda: cls.status is not None
+                and set(cls.status.available_profiles) == ALL_PROFILES,
+                timeout=60.0,
+            )
+        except Exception:
+            cls.set_profile_action_client.destroy()
+            cls.node.destroy_node()
+            rclpy.shutdown()
+            raise
 
     @classmethod
     def tearDownClass(cls):
@@ -152,10 +172,16 @@ class TestForemanIntegration(unittest.TestCase):
         first_handle = self._send_set_profile_goal("all_inactive")
         self.assertTrue(first_handle.accepted)
 
-        # accepted at the action layer, but the shared execution_lock the
-        # service and action adapters share rejects it before it can run --
-        # this is not the same as preempting the first goal's target, which
-        # only the (lock-bypassing) autostart path can currently do
+        # goal acceptance doesn't guarantee _execute() has started -- confirm via
+        # status, and specifically a not-yet-reached one: target alone can lag
+        # behind a depth-1 topic and land on the already-completed status instead
+        self._wait_for(
+            lambda: self.status.target_profile == "all_inactive"
+            and self.status.current_profile != "all_inactive",
+            timeout=5.0,
+        )
+
+        # rejected by the shared execution_lock, not preempted
         second_handle = self._send_set_profile_goal("active")
         self.assertTrue(second_handle.accepted)
         second_result = self._get_result(second_handle)

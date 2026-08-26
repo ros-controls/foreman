@@ -28,7 +28,7 @@ class AutostartAdapter:
             return
 
         if self.transition_success and self.engine.get_engine_snapshot().error.is_error:
-            self._node.get_logger().warn(
+            self._node.get_logger().warning(
                 f"Autostart profile '{self.profile_name}' aborted mid-transition. "
                 "Resetting for retry."
             )
@@ -67,7 +67,7 @@ class AutostartAdapter:
         if response.success:
             self._node.get_logger().info(f"Autostart: {response.message}")
         else:
-            self._node.get_logger().warn(f"Autostart failed: {response.message}")
+            self._node.get_logger().warning(f"Autostart failed: {response.message}")
         return response.success
 
     def _is_state_stable(self) -> bool:
