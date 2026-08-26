@@ -516,3 +516,31 @@ def test_scenario_14_mixed_hw_lifecycle_and_controllers():
 
     # Verify we reached the profile
     assert planner.get_next_transition(state, profile) is None
+
+
+def test_scenario_15_controller_without_dependency_rule_steps_up_freely():
+    """A controller with no declared dependency rule isn't gated by hardware state at all."""
+    planner = Planner(dependency_rules=[])
+
+    state = SystemState(
+        components={
+            "broadcaster": Component(
+                "broadcaster", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED
+            ),
+        }
+    )
+    profile = SystemProfile(
+        "active",
+        controller_targets=[
+            Component("broadcaster", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
+        ],
+    )
+
+    cmd = planner.get_next_transition(state, profile)
+    assert cmd.component.name == "broadcaster"
+    assert cmd.goal_state == LifecycleState.INACTIVE
+    apply_command(state, cmd)
+
+    cmd = planner.get_next_transition(state, profile)
+    assert cmd.component.name == "broadcaster"
+    assert cmd.goal_state == LifecycleState.ACTIVE
