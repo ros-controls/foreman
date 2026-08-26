@@ -1,0 +1,52 @@
+# Minimal scenario for ROS 2 integration tests (test/test_integration.py).
+# One of each component type, plus profiles for full and partial functionality.
+
+hardware:
+  - hw1
+
+lifecycle_nodes:
+  - dummy_lifecycle_node
+
+controllers:
+  ctrl1:
+    requires: [hw1, active]
+
+profiles:
+
+  active:
+    hardware:
+      hw1: active
+    controllers:
+      ctrl1: active
+    lifecycle_nodes:
+      dummy_lifecycle_node: active
+
+  all_inactive:
+    hardware:
+      hw1: inactive
+    controllers:
+      ctrl1: inactive
+    lifecycle_nodes:
+      dummy_lifecycle_node: inactive
+
+  idle:
+    hardware:
+      hw1: unconfigured
+    controllers:
+      ctrl1: unconfigured
+    lifecycle_nodes:
+      dummy_lifecycle_node: unconfigured
+
+  # Targets only the ros2_control side -- the lifecycle node isn't part of
+  # these targets, so its state doesn't affect matching them.
+  ros2_control_active:
+    hardware:
+      hw1: active
+    controllers:
+      ctrl1: active
+
+  ros2_control_inactive:
+    hardware:
+      hw1: inactive
+    controllers:
+      ctrl1: inactive
