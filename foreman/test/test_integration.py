@@ -88,10 +88,21 @@ class TestForemanIntegration(unittest.TestCase):
         # is a separate, slower-starting process than fake_controller_manager, so
         # waiting on ready alone races with its discovery. Wait for every profile to
         # show available instead, confirming all three components have reported.
-        cls._wait_for(
-            lambda: cls.status is not None and set(cls.status.available_profiles) == ALL_PROFILES,
-            timeout=30.0,
-        )
+        # A generous timeout: CI runners start three separate processes and can be
+        # much slower than a dev machine. If this ever fails, cleanup still must run --
+        # tearDownClass is never called for a failed setUpClass, so a bare timeout here
+        # would leak rclpy's global context and cascade into every later test file.
+        try:
+            cls._wait_for(
+                lambda: cls.status is not None
+                and set(cls.status.available_profiles) == ALL_PROFILES,
+                timeout=60.0,
+            )
+        except Exception:
+            cls.set_profile_action_client.destroy()
+            cls.node.destroy_node()
+            rclpy.shutdown()
+            raise
 
     @classmethod
     def tearDownClass(cls):
