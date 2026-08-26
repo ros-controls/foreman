@@ -70,9 +70,7 @@ class TestForemanIntegration(unittest.TestCase):
         rclpy.init()
         cls.node = rclpy.create_node("test_integration_client")
         cls.status = None
-        # /foreman/status is transient-local: match its QoS so a late-joining
-        # subscriber still gets the retained last status, instead of only
-        # future publishes (which stop once the snapshot stops changing)
+        # match /foreman/status's transient-local QoS, or a late-joining subscriber misses it
         status_qos = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -84,14 +82,8 @@ class TestForemanIntegration(unittest.TestCase):
         cls.set_profile_action_client = ActionClient(
             cls.node, SetProfileAction, "/foreman/set_profile"
         )
-        # ready flips true as soon as any component reports in -- dummy_lifecycle_node
-        # is a separate, slower-starting process than fake_controller_manager, so
-        # waiting on ready alone races with its discovery. Wait for every profile to
-        # show available instead, confirming all three components have reported.
-        # A generous timeout: CI runners start three separate processes and can be
-        # much slower than a dev machine. If this ever fails, cleanup still must run --
-        # tearDownClass is never called for a failed setUpClass, so a bare timeout here
-        # would leak rclpy's global context and cascade into every later test file.
+        # wait for full observation, not just ready -- and clean up on failure,
+        # since tearDownClass never runs for a failed setUpClass
         try:
             cls._wait_for(
                 lambda: cls.status is not None
@@ -180,17 +172,10 @@ class TestForemanIntegration(unittest.TestCase):
         first_handle = self._send_set_profile_goal("all_inactive")
         self.assertTrue(first_handle.accepted)
 
-        # goal acceptance doesn't guarantee _execute() has started yet (it's
-        # dispatched separately by the action server) -- wait for the status
-        # topic to show the request was actually processed, confirming
-        # request_profile() ran and execution_lock is held, before racing
-        # a second goal against it
+        # goal acceptance doesn't guarantee _execute() has started -- confirm via status
         self._wait_for(lambda: self.status.target_profile == "all_inactive", timeout=5.0)
 
-        # accepted at the action layer, but the shared execution_lock the
-        # service and action adapters share rejects it before it can run --
-        # this is not the same as preempting the first goal's target, which
-        # only the (lock-bypassing) autostart path can currently do
+        # rejected by the shared execution_lock, not preempted
         second_handle = self._send_set_profile_goal("active")
         self.assertTrue(second_handle.accepted)
         second_result = self._get_result(second_handle)

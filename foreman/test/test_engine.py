@@ -96,12 +96,8 @@ def foreman_config():
             ),
         )
 
-    # "ros2_control_active"/"_inactive" are listed before the profiles they're a
-    # subset of ("active"/"all_inactive"), deliberately -- this is the same
-    # "narrower profile configured first" trap the overlapping-profile fix
-    # (_matching_profile_name() preferring the target) actually needed to
-    # handle; a fixture that happened to list the superset first would make
-    # that regression test pass even without the fix.
+    # ros2_control_active/_inactive listed before their supersets, deliberately --
+    # needed so the overlap regression test below can actually detect a revert.
     profiles = {
         "idle": profile(
             "idle",
