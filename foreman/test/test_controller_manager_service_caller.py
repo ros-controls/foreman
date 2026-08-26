@@ -63,6 +63,49 @@ class TestControllerManagerServiceCaller(unittest.TestCase):
         self.assertEqual(sent.name, "RRBot")
         self.assertEqual(sent.target_state.id, LifecycleState.ACTIVE.value)
 
+    def test_configure_sends_configure_request(self):
+        caller = ControllerManagerServiceCaller(self.node, "controller_manager")
+        caller._client_configure_controller = MagicMock()
+        cmd = SystemTransitionCommand(
+            Component("ctrl_a", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
+            LifecycleState.INACTIVE,
+        )
+        caller.execute_transition(cmd)
+        sent = caller._client_configure_controller.call_async.call_args[0][0]
+        self.assertEqual(sent.name, "ctrl_a")
+
+    def test_cleanup_sends_cleanup_request(self):
+        caller = ControllerManagerServiceCaller(self.node, "controller_manager")
+        caller._client_cleanup_controller = MagicMock()
+        cmd = SystemTransitionCommand(
+            Component("ctrl_a", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
+            LifecycleState.UNCONFIGURED,
+        )
+        caller.execute_transition(cmd)
+        sent = caller._client_cleanup_controller.call_async.call_args[0][0]
+        self.assertEqual(sent.name, "ctrl_a")
+
+    def test_when_transition_not_processable_expect_value_error(self):
+        caller = ControllerManagerServiceCaller(self.node, "controller_manager")
+        cmd = SystemTransitionCommand(
+            Component("ctrl_a", ComponentType.CONTROLLER, LifecycleState.FINALIZED),
+            LifecycleState.INACTIVE,
+        )
+        with self.assertRaises(ValueError):
+            caller.execute_transition(cmd)
+
+    def test_when_service_not_ready_expect_runtime_error(self):
+        caller = ControllerManagerServiceCaller(self.node, "controller_manager")
+        caller._client_set_hardware_component_state = MagicMock(
+            service_is_ready=MagicMock(return_value=False)
+        )
+        cmd = SystemTransitionCommand(
+            Component("RRBot", ComponentType.HARDWARE, LifecycleState.INACTIVE),
+            LifecycleState.ACTIVE,
+        )
+        with self.assertRaises(RuntimeError):
+            caller.execute_transition(cmd)
+
 
 if __name__ == "__main__":
     unittest.main()
