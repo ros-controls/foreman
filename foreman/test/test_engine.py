@@ -480,8 +480,8 @@ def test_when_target_profile_is_a_superset_of_an_earlier_configured_profile_expe
     """A matching target profile must win over a narrower, earlier-configured one."""
     engine = _prepare_engine(foreman_config)
 
-    # "active" (configured first) also matches this state via "ros2_control_active"
-    # (narrower, configured later) -- "active" must still be reported once requested
+    # "ros2_control_active" (narrower, configured first) also matches this state --
+    # "active" (the requested superset, configured later) must still win
     engine.set_system_state(
         _state(hw1=LifecycleState.ACTIVE, ctrl1=LifecycleState.ACTIVE, lc1=LifecycleState.ACTIVE)
     )

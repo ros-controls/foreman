@@ -172,8 +172,14 @@ class TestForemanIntegration(unittest.TestCase):
         first_handle = self._send_set_profile_goal("all_inactive")
         self.assertTrue(first_handle.accepted)
 
-        # goal acceptance doesn't guarantee _execute() has started -- confirm via status
-        self._wait_for(lambda: self.status.target_profile == "all_inactive", timeout=5.0)
+        # goal acceptance doesn't guarantee _execute() has started -- confirm via
+        # status, and specifically a not-yet-reached one: target alone can lag
+        # behind a depth-1 topic and land on the already-completed status instead
+        self._wait_for(
+            lambda: self.status.target_profile == "all_inactive"
+            and self.status.current_profile != "all_inactive",
+            timeout=5.0,
+        )
 
         # rejected by the shared execution_lock, not preempted
         second_handle = self._send_set_profile_goal("active")
