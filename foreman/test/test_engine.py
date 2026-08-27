@@ -694,3 +694,70 @@ def test_when_state_observed_expect_response_reports_missing_configured_componen
 
     response = engine.set_system_state(_state())
     assert response.missing_components == []
+
+
+@pytest.fixture
+def profile_switching_config():
+    """Config where each profile restricts which profile may follow it."""
+
+    def profile(name, state, allowed_transitions):
+        return SystemProfile(
+            name,
+            hardware_targets=[Component("hw1", ComponentType.HARDWARE, state)],
+            allowed_transitions=allowed_transitions,
+        )
+
+    profiles = {
+        "idle": profile("idle", LifecycleState.INACTIVE, ["broadcast_only"]),
+        "broadcast_only": profile("broadcast_only", LifecycleState.ACTIVE, ["running"]),
+        "running": profile("running", LifecycleState.ACTIVE, ["broadcast_only", "running"]),
+    }
+    return ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        profiles=profiles,
+        tracked_components={"hw1"},
+    )
+
+
+def test_when_target_profile_declares_allowed_transitions_expect_only_listed_targets_accepted(
+    profile_switching_config,
+):
+    """Restricted profiles reject any transition not in their allowed_transitions."""
+    engine = _prepare_engine(profile_switching_config)
+
+    # first request ever is unrestricted, even into a profile with its own restrictions
+    response = engine.request_profile("idle")
+    assert response.success is True
+
+    # idle only allows broadcast_only next
+    response = engine.request_profile("running")
+    assert response.success is False
+    assert "not allowed" in response.message
+
+    response = engine.request_profile("broadcast_only")
+    assert response.success is True
+
+    # broadcast_only doesn't allow going back to idle
+    response = engine.request_profile("idle")
+    assert response.success is False
+
+    # running allows looping back to broadcast_only, and looping to itself
+    response = engine.request_profile("running")
+    assert response.success is True
+    response = engine.request_profile("running")
+    assert response.success is True
+
+
+def test_when_target_profile_has_no_allowed_transitions_expect_any_profile_accepted(
+    foreman_config,
+):
+    """A profile with allowed_transitions undeclared stays fully permissive (regression)."""
+    engine = _prepare_engine(foreman_config)
+
+    engine.request_profile("idle")
+    response = engine.request_profile("active")
+    assert response.success is True
+
+    response = engine.request_profile("all_inactive")
+    assert response.success is True

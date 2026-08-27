@@ -153,6 +153,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
             hardware_targets=hw_targets,
             controller_targets=ctrl_targets,
             lifecycle_node_targets=lc_targets,
+            allowed_transitions=profile_config.get("allowed_transitions", []),
         )
 
     metadata = {}
@@ -180,6 +181,16 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
             f"autostart_profile '{autostart_profile}' not found in profiles. "
             f"Available: {list(profiles.keys())}"
         )
+
+    for profile in profiles.values():
+        unknown_targets = [
+            target for target in profile.allowed_transitions if target not in profiles
+        ]
+        if unknown_targets:
+            raise ValueError(
+                f"Profile '{profile.name}' has allowed_transitions to unknown profile(s) "
+                f"{unknown_targets}. Available: {list(profiles.keys())}"
+            )
 
     return ParsedScenario(
         autostart_profile=autostart_profile,

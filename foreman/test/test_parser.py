@@ -30,6 +30,18 @@ def parsed_autostart_scenario(autostart_scenario_path):
     return parse_yaml_file(autostart_scenario_path)
 
 
+@pytest.fixture
+def profile_switching_scenario_path():
+    """Path to the scenario_profile_switching.yaml file."""
+    return Path(__file__).parent.parent / "config" / "scenario_profile_switching.yaml"
+
+
+@pytest.fixture
+def parsed_profile_switching_scenario(profile_switching_scenario_path):
+    """Parse the scenario_profile_switching.yaml file."""
+    return parse_yaml_file(profile_switching_scenario_path)
+
+
 class TestParsedScenario:
     """Tests for ParsedScenario structure."""
 
@@ -54,6 +66,35 @@ class TestAutostartScenario:
 
     def test_autostart_profile_is_a_declared_profile(self, parsed_autostart_scenario):
         assert parsed_autostart_scenario.autostart_profile in parsed_autostart_scenario.profiles
+
+
+class TestProfileSwitchingScenario:
+    """Tests for a scenario restricting which profile may follow which."""
+
+    def test_allowed_transitions_are_parsed_per_profile(self, parsed_profile_switching_scenario):
+        profiles = parsed_profile_switching_scenario.profiles
+        assert profiles["idle"].allowed_transitions == ["broadcast_only"]
+        assert profiles["broadcast_only"].allowed_transitions == ["running"]
+        assert profiles["running"].allowed_transitions == ["broadcast_only", "running"]
+
+    def test_profile_without_allowed_transitions_defaults_empty(self, parsed_scenario):
+        for profile in parsed_scenario.profiles.values():
+            assert profile.allowed_transitions == []
+
+    def test_allowed_transitions_to_unknown_profile_raises(self, tmp_path):
+        scenario = """
+        hardware: [hw1]
+        profiles:
+          idle:
+            allowed_transitions: [not_a_real_profile]
+            hardware:
+              hw1: inactive
+        """
+        scenario_path = tmp_path / "scenario_bad_allowed_transitions.yaml"
+        scenario_path.write_text(scenario)
+
+        with pytest.raises(ValueError, match="not_a_real_profile"):
+            parse_yaml_file(scenario_path)
 
 
 class TestDependencyRules:

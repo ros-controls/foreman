@@ -47,6 +47,11 @@ class ForemanEngine:
         """
         Request a new profile for the system.
 
+        Rejected if the current target profile declares a non-empty
+        allowed_transitions that doesn't list profile_name. A profile
+        with no allowed_transitions declared permits switching to any
+        profile.
+
         Clears a blocked-category error outright. Recomputes an
         UNEXPECTED_STATE error against the new target instead of
         clearing it blindly.
@@ -61,6 +66,17 @@ class ForemanEngine:
             if not self._is_ready:
                 return ForemanResponse(
                     False, "Foreman not ready. Is /activity topic being published?"
+                )
+
+            if (
+                self._target_profile
+                and self._target_profile.allowed_transitions
+                and profile_name not in self._target_profile.allowed_transitions
+            ):
+                return ForemanResponse(
+                    False,
+                    f"Transition from '{self._target_profile.name}' to '{profile_name}' is not "
+                    f"allowed. Allowed next profiles: {sorted(self._target_profile.allowed_transitions)}",
                 )
 
             missing_components = self._missing_profile_components(profile)
