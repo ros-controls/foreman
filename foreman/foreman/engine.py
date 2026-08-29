@@ -50,7 +50,9 @@ class ForemanEngine:
         Rejected if the current target profile declares a non-empty
         allowed_transitions that doesn't list profile_name. A profile
         with no allowed_transitions declared permits switching to any
-        profile.
+        profile. Re-requesting the currently targeted profile is always
+        allowed regardless of allowed_transitions -- it isn't a
+        transition to another profile.
 
         Clears a blocked-category error outright. Recomputes an
         UNEXPECTED_STATE error against the new target instead of
@@ -70,6 +72,7 @@ class ForemanEngine:
 
             if (
                 self._target_profile
+                and self._target_profile.name != profile_name
                 and self._target_profile.allowed_transitions
                 and profile_name not in self._target_profile.allowed_transitions
             ):

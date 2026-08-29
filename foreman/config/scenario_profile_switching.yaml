@@ -43,7 +43,7 @@ profiles:
       dummy_lifecycle_node: active
 
   running:
-    allowed_transitions: [broadcast_only, running]
+    allowed_transitions: [broadcast_only]
     controllers:
       joint_state_broadcaster: active
       kassow_joint_trajectory_controller: active

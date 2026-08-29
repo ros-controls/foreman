@@ -75,7 +75,7 @@ class TestProfileSwitchingScenario:
         profiles = parsed_profile_switching_scenario.profiles
         assert profiles["idle"].allowed_transitions == ["broadcast_only"]
         assert profiles["broadcast_only"].allowed_transitions == ["running"]
-        assert profiles["running"].allowed_transitions == ["broadcast_only", "running"]
+        assert profiles["running"].allowed_transitions == ["broadcast_only"]
 
     def test_profile_without_allowed_transitions_defaults_empty(self, parsed_scenario):
         for profile in parsed_scenario.profiles.values():

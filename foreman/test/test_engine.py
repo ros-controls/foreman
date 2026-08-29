@@ -710,7 +710,7 @@ def profile_switching_config():
     profiles = {
         "idle": profile("idle", LifecycleState.INACTIVE, ["broadcast_only"]),
         "broadcast_only": profile("broadcast_only", LifecycleState.ACTIVE, ["running"]),
-        "running": profile("running", LifecycleState.ACTIVE, ["broadcast_only", "running"]),
+        "running": profile("running", LifecycleState.ACTIVE, ["broadcast_only"]),
     }
     return ParsedScenario(
         hardware=["hw1"],
@@ -742,9 +742,11 @@ def test_when_target_profile_declares_allowed_transitions_expect_only_listed_tar
     response = engine.request_profile("idle")
     assert response.success is False
 
-    # running allows looping back to broadcast_only, and looping to itself
     response = engine.request_profile("running")
     assert response.success is True
+
+    # re-requesting the current target always succeeds, even though "running"
+    # isn't listed in its own allowed_transitions -- it isn't a transition
     response = engine.request_profile("running")
     assert response.success is True
 
