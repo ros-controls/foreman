@@ -96,6 +96,38 @@ class TestProfileSwitchingScenario:
         with pytest.raises(ValueError, match="not_a_real_profile"):
             parse_yaml_file(scenario_path)
 
+    def test_null_allowed_transitions_defaults_empty(self, tmp_path):
+        """allowed_transitions: with no value (YAML null) is treated the same as absent."""
+        scenario = """
+        hardware: [hw1]
+        profiles:
+          idle:
+            allowed_transitions:
+            hardware:
+              hw1: inactive
+        """
+        scenario_path = tmp_path / "scenario_null_allowed_transitions.yaml"
+        scenario_path.write_text(scenario)
+
+        parsed = parse_yaml_file(scenario_path)
+        assert parsed.profiles["idle"].allowed_transitions == []
+
+    def test_non_list_allowed_transitions_raises(self, tmp_path):
+        """A bare string (missing the list brackets) is rejected, not iterated character-by-character."""
+        scenario = """
+        hardware: [hw1]
+        profiles:
+          idle:
+            allowed_transitions: broadcast_only
+            hardware:
+              hw1: inactive
+        """
+        scenario_path = tmp_path / "scenario_scalar_allowed_transitions.yaml"
+        scenario_path.write_text(scenario)
+
+        with pytest.raises(ValueError, match="allowed_transitions"):
+            parse_yaml_file(scenario_path)
+
 
 class TestDependencyRules:
     """Tests for parsed dependency rules."""
