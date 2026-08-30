@@ -36,6 +36,9 @@ class ForemanEngine:
         self._error_state: Optional[ForemanError] = None
         self._last_issued_command: Optional[SystemTransitionCommand] = None
         self._reached_target = False  # latches True once at_profile, until the next request
+        self._last_reached_profile: Optional[SystemProfile] = (
+            None  # source for allowed_transitions
+        )
 
     @property
     def is_at_profile(self) -> bool:
@@ -46,6 +49,19 @@ class ForemanEngine:
     def request_profile(self, profile_name: str) -> ForemanResponse:
         """
         Request a new profile for the system.
+
+        Rejected if the last profile actually reached declares a
+        non-empty allowed_transitions that doesn't list profile_name. A
+        profile with no allowed_transitions declared permits switching
+        to any profile. Re-requesting that same last-reached profile is
+        always allowed regardless of allowed_transitions -- it isn't a
+        transition to another profile.
+
+        Deliberately keyed off the last profile physically reached, not
+        the most recently requested target: otherwise a caller could
+        chain idle -> broadcast_only -> running back to back before the
+        system ever physically reaches broadcast_only, using its
+        allow-list without ever being there.
 
         Clears a blocked-category error outright. Recomputes an
         UNEXPECTED_STATE error against the new target instead of
@@ -61,6 +77,19 @@ class ForemanEngine:
             if not self._is_ready:
                 return ForemanResponse(
                     False, "Foreman not ready. Is /activity topic being published?"
+                )
+
+            source = self._last_reached_profile
+            if (
+                source
+                and source.name != profile_name
+                and source.allowed_transitions
+                and profile_name not in source.allowed_transitions
+            ):
+                return ForemanResponse(
+                    False,
+                    f"Transition from '{source.name}' to '{profile_name}' is not "
+                    f"allowed. Allowed next profiles: {sorted(source.allowed_transitions)}",
                 )
 
             missing_components = self._missing_profile_components(profile)
@@ -96,6 +125,8 @@ class ForemanEngine:
             self._target_profile = profile
             self._current_profile = self._matching_profile_name()
             self._reached_target = self._is_at_profile()
+            if self._reached_target:
+                self._last_reached_profile = self._target_profile
 
             if self._error_state:
                 mismatches = self._profile_mismatches(profile)
@@ -175,6 +206,7 @@ class ForemanEngine:
                 response = self.check_profile(previous_state)
                 if self._is_at_profile():
                     self._reached_target = True
+                    self._last_reached_profile = self._target_profile
 
             response.missing_components = missing_components
             return response

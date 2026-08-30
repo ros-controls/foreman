@@ -694,3 +694,94 @@ def test_when_state_observed_expect_response_reports_missing_configured_componen
 
     response = engine.set_system_state(_state())
     assert response.missing_components == []
+
+
+@pytest.fixture
+def profile_switching_config():
+    """Config where each profile restricts which profile may follow it."""
+
+    def profile(name, state, allowed_transitions):
+        return SystemProfile(
+            name,
+            hardware_targets=[Component("hw1", ComponentType.HARDWARE, state)],
+            allowed_transitions=allowed_transitions,
+        )
+
+    profiles = {
+        "idle": profile("idle", LifecycleState.INACTIVE, ["broadcast_only"]),
+        "broadcast_only": profile("broadcast_only", LifecycleState.ACTIVE, ["running"]),
+        "running": profile("running", LifecycleState.ACTIVE, ["broadcast_only"]),
+    }
+    return ParsedScenario(
+        hardware=["hw1"],
+        dependency_rules=[],
+        profiles=profiles,
+        tracked_components={"hw1"},
+    )
+
+
+def test_when_target_profile_declares_allowed_transitions_expect_only_listed_targets_accepted(
+    profile_switching_config,
+):
+    """
+    Restricted profiles reject any transition not in their allowed_transitions.
+
+    The restriction is keyed off the last profile physically reached, not
+    the most recently requested target -- so a caller can't chain requests
+    (idle -> broadcast_only -> running) before the system ever physically
+    reaches the intermediate profile, using its allow-list without having
+    been there.
+    """
+    engine = _prepare_engine(profile_switching_config)
+
+    def reach(state):
+        engine.set_system_state([Component("hw1", ComponentType.HARDWARE, state)])
+
+    # first request ever is unrestricted, even into a profile with its own restrictions
+    response = engine.request_profile("idle")
+    assert response.success is True
+
+    reach(LifecycleState.INACTIVE)  # physically reach idle: idle is now the restriction source
+
+    # idle only allows broadcast_only next
+    response = engine.request_profile("running")
+    assert response.success is False
+    assert "not allowed" in response.message
+
+    response = engine.request_profile("broadcast_only")
+    assert response.success is True
+
+    # not yet physically at broadcast_only: still restricted by idle's
+    # allow-list, even though the requested target (broadcast_only) would
+    # itself permit "running"
+    response = engine.request_profile("running")
+    assert response.success is False
+
+    reach(LifecycleState.ACTIVE)  # physically reach broadcast_only
+
+    # broadcast_only doesn't allow going back to idle
+    response = engine.request_profile("idle")
+    assert response.success is False
+
+    response = engine.request_profile("running")
+    assert response.success is True
+
+    # re-requesting the current target always succeeds, even before it's
+    # physically reached and even though "running" isn't listed in its own
+    # allowed_transitions -- it isn't a transition to another profile
+    response = engine.request_profile("running")
+    assert response.success is True
+
+
+def test_when_target_profile_has_no_allowed_transitions_expect_any_profile_accepted(
+    foreman_config,
+):
+    """A profile with allowed_transitions undeclared stays fully permissive (regression)."""
+    engine = _prepare_engine(foreman_config)
+
+    engine.request_profile("idle")
+    response = engine.request_profile("active")
+    assert response.success is True
+
+    response = engine.request_profile("all_inactive")
+    assert response.success is True

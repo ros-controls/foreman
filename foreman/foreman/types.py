@@ -139,6 +139,7 @@ class SystemProfile:
     hardware_targets: List[Component] = field(default_factory=list)
     controller_targets: List[Component] = field(default_factory=list)
     lifecycle_node_targets: List[Component] = field(default_factory=list)
+    allowed_transitions: List[str] = field(default_factory=list)
 
 
 @dataclass
