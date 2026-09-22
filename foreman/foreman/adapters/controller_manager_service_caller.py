@@ -51,7 +51,16 @@ class ControllerManagerServiceCaller:
         return client.call_async(request)
 
     def execute_transition(self, cmd: SystemTransitionCommand) -> Future:
-        """Execute a single command and returns the Future."""
+        """Execute a command and return the Future.
+
+        Controller activations and deactivations batched together by the planner
+        go out as ONE switch_controller request, so the controller manager hands
+        the hardware a single stop/start interface set. Sent as two requests, the
+        deactivate half leaves an active component with no command mode claimed,
+        which hardware that validates modes in prepare_command_mode_switch()
+        rejects. Configure, cleanup and hardware commands are never batched and
+        keep their own service call.
+        """
         name = cmd.component.name
         goal = cmd.goal_state
 
@@ -63,32 +72,50 @@ class ControllerManagerServiceCaller:
             return self._service_call(self._client_set_hardware_component_state, req)
 
         elif cmd.component.component_type == ComponentType.CONTROLLER:
-            current = cmd.component.lifecycle_state
+            activate = []
+            deactivate = []
 
-            if goal == LifecycleState.ACTIVE:
-                self._node.get_logger().info(f"{self.logger_prefix} Switch -> Activate {name}")
+            for step in cmd.steps:
+                step_name = step.component.name
+                step_goal = step.goal_state
+                step_current = step.component.lifecycle_state
+
+                if step_goal == LifecycleState.ACTIVE:
+                    activate.append(step_name)
+
+                elif step_goal == LifecycleState.INACTIVE and step_current == LifecycleState.ACTIVE:
+                    deactivate.append(step_name)
+
+                elif (
+                    step_goal == LifecycleState.INACTIVE
+                    and step_current == LifecycleState.UNCONFIGURED
+                ):
+                    # Never batched, so this is the only step.
+                    self._node.get_logger().info(
+                        f"{self.logger_prefix} Configure -> {step_name}"
+                    )
+                    return self._service_call(
+                        self._client_configure_controller,
+                        ConfigureController.Request(name=step_name),
+                    )
+
+                elif step_goal == LifecycleState.UNCONFIGURED:
+                    # Never batched, so this is the only step.
+                    self._node.get_logger().info(f"{self.logger_prefix} Cleanup -> {step_name}")
+                    return self._service_call(
+                        self._client_cleanup_controller,
+                        CleanupController.Request(name=step_name),
+                    )
+
+            if activate or deactivate:
+                self._node.get_logger().info(
+                    f"{self.logger_prefix} Switch -> activate {activate}, deactivate {deactivate}"
+                )
                 req = SwitchController.Request(
-                    activate_controllers=[name], strictness=SwitchController.Request.STRICT
+                    activate_controllers=activate,
+                    deactivate_controllers=deactivate,
+                    strictness=SwitchController.Request.STRICT,
                 )
                 return self._service_call(self._client_switch_controller, req)
-
-            elif goal == LifecycleState.INACTIVE and current == LifecycleState.ACTIVE:
-                self._node.get_logger().info(f"{self.logger_prefix} Switch -> Deactivate {name}")
-                req = SwitchController.Request(
-                    deactivate_controllers=[name], strictness=SwitchController.Request.STRICT
-                )
-                return self._service_call(self._client_switch_controller, req)
-
-            elif goal == LifecycleState.INACTIVE and current == LifecycleState.UNCONFIGURED:
-                self._node.get_logger().info(f"{self.logger_prefix} Configure -> {name}")
-                return self._service_call(
-                    self._client_configure_controller, ConfigureController.Request(name=name)
-                )
-
-            elif goal == LifecycleState.UNCONFIGURED:
-                self._node.get_logger().info(f"{self.logger_prefix} Cleanup -> {name}")
-                return self._service_call(
-                    self._client_cleanup_controller, CleanupController.Request(name=name)
-                )
 
         raise ValueError(f"Unable to process transition command: {cmd}")

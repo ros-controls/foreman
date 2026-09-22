@@ -544,3 +544,114 @@ def test_scenario_15_controller_without_dependency_rule_steps_up_freely():
     cmd = planner.get_next_transition(state, profile)
     assert cmd.component.name == "broadcaster"
     assert cmd.goal_state == LifecycleState.ACTIVE
+
+
+@pytest.fixture
+def swap_planner():
+    """Two controllers commanding the same arm, as in trajectory_ctrl / force_ctrl."""
+    rules = [
+        ControllerDependencyRule(
+            controller_name="left_joint_trajectory_controller",
+            required_hardware=[HardwareRequirement("left_hw", LifecycleState.ACTIVE)],
+        ),
+        ControllerDependencyRule(
+            controller_name="left_cartesian_impedance_controller",
+            required_hardware=[HardwareRequirement("left_hw", LifecycleState.ACTIVE)],
+        ),
+    ]
+    return Planner(dependency_rules=rules)
+
+
+def _swap_state(jtc_state, imp_state, hw_state=LifecycleState.ACTIVE):
+    return SystemState(
+        components={
+            "left_hw": Component("left_hw", ComponentType.HARDWARE, hw_state),
+            "left_joint_trajectory_controller": Component(
+                "left_joint_trajectory_controller", ComponentType.CONTROLLER, jtc_state
+            ),
+            "left_cartesian_impedance_controller": Component(
+                "left_cartesian_impedance_controller", ComponentType.CONTROLLER, imp_state
+            ),
+        }
+    )
+
+
+def _swap_profile(jtc_target, imp_target, hw_target=LifecycleState.ACTIVE):
+    return SystemProfile(
+        name="swap",
+        hardware_targets=[Component("left_hw", ComponentType.HARDWARE, hw_target)],
+        controller_targets=[
+            Component(
+                "left_joint_trajectory_controller", ComponentType.CONTROLLER, jtc_target
+            ),
+            Component(
+                "left_cartesian_impedance_controller", ComponentType.CONTROLLER, imp_target
+            ),
+        ],
+    )
+
+
+def test_controller_swap_is_batched_into_one_command(swap_planner):
+    """Deactivate and activate must be planned together, not as two steps.
+
+    Two separate switch_controller requests hand the hardware a stop set with an
+    empty start set, which franka_hardware rejects in
+    prepare_command_mode_switch(). One request keeps the arm in a valid command
+    mode throughout.
+    """
+    state = _swap_state(LifecycleState.ACTIVE, LifecycleState.INACTIVE)
+    profile = _swap_profile(LifecycleState.INACTIVE, LifecycleState.ACTIVE)
+
+    cmd = swap_planner.get_next_transition(state, profile)
+
+    assert cmd.component.name == "left_joint_trajectory_controller"
+    assert cmd.goal_state == LifecycleState.INACTIVE
+    assert len(cmd.batched) == 1
+    assert cmd.batched[0].component.name == "left_cartesian_impedance_controller"
+    assert cmd.batched[0].goal_state == LifecycleState.ACTIVE
+    assert cmd.component_names == [
+        "left_joint_trajectory_controller",
+        "left_cartesian_impedance_controller",
+    ]
+
+
+def test_controller_swap_batches_in_both_directions(swap_planner):
+    """force_ctrl -> trajectory_ctrl must batch just the same as the reverse."""
+    state = _swap_state(LifecycleState.INACTIVE, LifecycleState.ACTIVE)
+    profile = _swap_profile(LifecycleState.ACTIVE, LifecycleState.INACTIVE)
+
+    cmd = swap_planner.get_next_transition(state, profile)
+
+    assert cmd.component.name == "left_cartesian_impedance_controller"
+    assert cmd.goal_state == LifecycleState.INACTIVE
+    assert [s.component.name for s in cmd.batched] == ["left_joint_trajectory_controller"]
+
+
+def test_deactivate_is_not_batched_while_hardware_still_has_to_move(swap_planner):
+    """Ordering wins over batching.
+
+    The priority order puts hardware steps between the deactivate and activate
+    phases. Folding an activation in early would run it ahead of a hardware step
+    it depends on, so batching only happens once nothing else is outstanding.
+    """
+    state = _swap_state(
+        LifecycleState.ACTIVE, LifecycleState.INACTIVE, hw_state=LifecycleState.INACTIVE
+    )
+    profile = _swap_profile(LifecycleState.INACTIVE, LifecycleState.ACTIVE)
+
+    cmd = swap_planner.get_next_transition(state, profile)
+
+    assert cmd.component.name == "left_joint_trajectory_controller"
+    assert cmd.goal_state == LifecycleState.INACTIVE
+    assert cmd.batched == []
+
+
+def test_lone_deactivate_is_not_batched(swap_planner):
+    """Nothing to activate means the command stays a plain single deactivate."""
+    state = _swap_state(LifecycleState.ACTIVE, LifecycleState.INACTIVE)
+    profile = _swap_profile(LifecycleState.INACTIVE, LifecycleState.INACTIVE)
+
+    cmd = swap_planner.get_next_transition(state, profile)
+
+    assert cmd.component.name == "left_joint_trajectory_controller"
+    assert cmd.batched == []

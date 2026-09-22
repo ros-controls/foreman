@@ -204,10 +204,15 @@ class ForemanEngine:
             existing = previous_state.get(incoming.name)
             if existing and incoming.lifecycle_state != existing.lifecycle_state:
                 target = self._profile_target_state(self._target_profile, incoming.name)
+                # A batched swap commands several controllers at once, so match
+                # the observed change against every step of the issued command.
                 expected = (
-                    self._last_issued_command
-                    and self._last_issued_command.component.name == incoming.name
-                    and self._last_issued_command.goal_state == incoming.lifecycle_state
+                    self._last_issued_command is not None
+                    and any(
+                        step.component.name == incoming.name
+                        and step.goal_state == incoming.lifecycle_state
+                        for step in self._last_issued_command.steps
+                    )
                 ) or (target is not None and incoming.lifecycle_state == target)
                 if not expected:
                     unexpected_changes.append(

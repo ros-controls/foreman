@@ -105,27 +105,27 @@ class ForemanNode(Node):
                     ok = result.ok
 
                 if not ok:
-                    comp_name = (
-                        self._active_transition.component.name
+                    comp_names = (
+                        self._active_transition.component_names
                         if self._active_transition
-                        else "unknown"
+                        else ["unknown"]
                     )
                     fault = ForemanError(
                         category=ForemanErrorCategory.EXECUTION,
                         message="Service rejected the transition.",
-                        component_names=[comp_name],
+                        component_names=comp_names,
                     )
                     self._log_and_abort_profile(fault)
             except Exception as e:
-                comp_name = (
-                    self._active_transition.component.name
+                comp_names = (
+                    self._active_transition.component_names
                     if self._active_transition
-                    else "unknown"
+                    else ["unknown"]
                 )
                 fault = ForemanError(
                     category=ForemanErrorCategory.TRANSPORT,
                     message=f"Service call exception: {str(e)}",
-                    component_names=[comp_name],
+                    component_names=comp_names,
                 )
                 self._log_and_abort_profile(fault)
             finally:
@@ -155,7 +155,7 @@ class ForemanNode(Node):
             fault = ForemanError(
                 category=ForemanErrorCategory.EXECUTION,
                 message=f"Failed to execute transition: {str(e)}",
-                component_names=[command.component.name],
+                component_names=command.component_names,
             )
             self._log_and_abort_profile(fault)
             self._active_transition = None

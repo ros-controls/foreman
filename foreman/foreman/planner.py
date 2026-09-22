@@ -110,6 +110,30 @@ class Planner:
         # Strict order for issuing next command
         # C deactivate > HW Down > HW Up > C cleanup > C config > C activate
         if cmds_ctrl_deactivate:
+            # A controller swap has to reach the controller manager as ONE
+            # switch_controller request, so the hardware is handed its stop and
+            # start interface sets together and sees a valid mode-to-mode
+            # transition. Split across two requests, the lone deactivate leaves
+            # an active component with no command mode claimed at all, which any
+            # hardware that validates modes in prepare_command_mode_switch()
+            # rejects -- franka_hardware does, which is what makes a
+            # trajectory <-> impedance swap fail with "Service rejected the
+            # transition" while each half looks perfectly legal on its own.
+            #
+            # Batch only when nothing else is outstanding. The priority order
+            # below exists so hardware and configure steps land BETWEEN the
+            # deactivate and activate phases; folding activations in early would
+            # run them ahead of a step they may depend on.
+            if (
+                cmds_ctrl_activate
+                and not cmds_hw_step_down
+                and not cmds_hw_step_up
+                and not cmds_ctrl_cleanup
+                and not cmds_ctrl_config
+            ):
+                primary, *rest = cmds_ctrl_deactivate
+                primary.batched = rest + cmds_ctrl_activate
+                return primary
             return cmds_ctrl_deactivate[0]
         if cmds_hw_step_down:
             return cmds_hw_step_down[0]

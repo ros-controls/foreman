@@ -109,3 +109,33 @@ class TestControllerManagerServiceCaller(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_batched_swap_sends_one_request_with_both_lists(self):
+        """A swap must reach the CM as a single switch_controller request.
+
+        Split into two requests, the deactivate half hands the hardware a stop
+        set with an empty start set. Hardware that validates command modes in
+        prepare_command_mode_switch() -- franka_hardware does -- rejects that,
+        so a trajectory <-> impedance swap fails even though each half is legal.
+        """
+        caller = ControllerManagerServiceCaller(self.node, "controller_manager")
+        caller._client_switch_controller = MagicMock()
+
+        cmd = SystemTransitionCommand(
+            Component("left_joint_trajectory_controller", ComponentType.CONTROLLER,
+                      LifecycleState.ACTIVE),
+            LifecycleState.INACTIVE,
+            batched=[
+                SystemTransitionCommand(
+                    Component("left_cartesian_impedance_controller", ComponentType.CONTROLLER,
+                              LifecycleState.INACTIVE),
+                    LifecycleState.ACTIVE,
+                )
+            ],
+        )
+        caller.execute_transition(cmd)
+
+        self.assertEqual(caller._client_switch_controller.call_async.call_count, 1)
+        sent = caller._client_switch_controller.call_async.call_args[0][0]
+        self.assertEqual(list(sent.deactivate_controllers), ["left_joint_trajectory_controller"])
+        self.assertEqual(list(sent.activate_controllers), ["left_cartesian_impedance_controller"])
